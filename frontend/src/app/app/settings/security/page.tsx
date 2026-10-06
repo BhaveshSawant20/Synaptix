@@ -233,6 +233,9 @@ export default function SecuritySettingsPage() {
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   placeholder="Re-enter new password"
                   autoComplete="new-password"
+                  data-lpignore="true"
+                  data-1p-ignore="true"
+                  spellCheck={false}
                   required
                   className="h-11 w-full rounded-xl border border-stone-200 bg-white px-4 pr-11 text-sm text-stone-900 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
                 />
