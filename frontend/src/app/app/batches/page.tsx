@@ -1,0 +1,1945 @@
+"use client";
+
+import { FormEvent, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+
+type School = {
+  id: string;
+  name: string;
+};
+
+type Standard = {
+  id: string;
+  name: string;
+};
+
+type Student = {
+  id: string;
+  name: string;
+  studentCode?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  school?: School | null;
+  standard?: Standard | null;
+};
+
+type Teacher = {
+  id: string;
+  name: string;
+  email?: string | null;
+  phone?: string | null;
+  specialization?: string | null;
+};
+
+type BatchStudentAssignment = {
+  id: string;
+  studentId: string;
+  batchId: string;
+  joinedAt?: string;
+  student: Student;
+};
+
+type BatchTeacherAssignment = {
+  id: string;
+  teacherId: string;
+  batchId: string;
+  teacher: Teacher;
+};
+
+type Batch = {
+  id: string;
+  name: string;
+  description?: string | null;
+  startDate?: string | null;
+  endDate?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+type BatchForm = {
+  name: string;
+  description: string;
+  startDate: string;
+  endDate: string;
+};
+
+type ScheduleConflict = {
+  type: "student" | "teacher" | "batch";
+  personName?: string;
+  studentId?: string;
+  teacherId?: string;
+  existingBatchId?: string;
+  existingBatchName?: string;
+  existingDay?: string;
+  existingDayOfWeek?: number;
+  existingStartTime?: string;
+  existingEndTime?: string;
+  newBatchId?: string;
+  newBatchName?: string;
+  newDay?: string;
+  newDayOfWeek?: number;
+  newStartTime?: string;
+  newEndTime?: string;
+};
+
+type ConflictModalData = {
+  code:
+    | "STUDENT_SCHEDULE_CONFLICT"
+    | "TEACHER_SCHEDULE_CONFLICT"
+    | "BATCH_SCHEDULE_CONFLICT";
+  message: string;
+  conflicts: ScheduleConflict[];
+};
+
+import { API_URL } from "@/lib/api";
+
+const emptyForm: BatchForm = {
+  name: "",
+  description: "",
+  startDate: "",
+  endDate: "",
+};
+
+export default function BatchesPage() {
+  const router = useRouter();
+
+  const [batches, setBatches] = useState<Batch[]>([]);
+  const [form, setForm] = useState<BatchForm>(emptyForm);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingBatch, setEditingBatch] = useState<Batch | null>(null);
+  const [search, setSearch] = useState("");
+
+  // Dedicated Delete Confirmation Modal state
+  const [deletingBatch, setDeletingBatch] = useState<Batch | null>(null);
+  const [isDeletingBatch, setIsDeletingBatch] = useState(false);
+
+  // =========================
+  // STUDENT ASSIGNMENT STATE
+  // =========================
+
+  const [isStudentsModalOpen, setIsStudentsModalOpen] = useState(false);
+  const [allStudents, setAllStudents] = useState<Student[]>([]);
+  const [assignedStudents, setAssignedStudents] = useState<
+    BatchStudentAssignment[]
+  >([]);
+  const [selectedStudentId, setSelectedStudentId] = useState("");
+  const [studentsLoading, setStudentsLoading] = useState(false);
+  const [studentActionLoading, setStudentActionLoading] = useState(false);
+  const [studentError, setStudentError] = useState("");
+  const [removingStudent, setRemovingStudent] = useState<{
+    studentId: string;
+    studentName: string;
+  } | null>(null);
+
+  // =========================
+  // TEACHER ASSIGNMENT STATE
+  // =========================
+
+  const [isTeachersModalOpen, setIsTeachersModalOpen] = useState(false);
+  const [allTeachers, setAllTeachers] = useState<Teacher[]>([]);
+  const [assignedTeachers, setAssignedTeachers] = useState<
+    BatchTeacherAssignment[]
+  >([]);
+  const [selectedTeacherId, setSelectedTeacherId] = useState("");
+  const [teachersLoading, setTeachersLoading] = useState(false);
+  const [teacherActionLoading, setTeacherActionLoading] = useState(false);
+  const [teacherError, setTeacherError] = useState("");
+  const [removingTeacher, setRemovingTeacher] = useState<{
+    teacherId: string;
+    teacherName: string;
+  } | null>(null);
+
+  // =========================
+  // COMMON
+  // =========================
+
+  const [selectedBatch, setSelectedBatch] = useState<Batch | null>(null);
+  const [conflictModal, setConflictModal] =
+    useState<ConflictModalData | null>(null);
+
+  const token =
+    typeof window !== "undefined"
+      ? localStorage.getItem("synaptix_token")
+      : null;
+
+  // =========================
+  // LOAD BATCHES
+  // =========================
+
+  async function loadBatches() {
+    try {
+      setLoading(true);
+      setError("");
+
+      const response = await fetch(`${API_URL}/batches`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      const data = await response.json();
+
+      if (response.status === 401) {
+        window.location.href = "/login";
+        return;
+      }
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || "Failed to load batches.");
+      }
+
+      setBatches(Array.isArray(data.batches) ? data.batches : []);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Failed to load batches."
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    if (!token) {
+      window.location.href = "/login";
+      return;
+    }
+
+    loadBatches();
+  }, []);
+
+  function showConflictModal(data: {
+    code?: string;
+    message?: string;
+    conflicts?: ScheduleConflict[];
+  }) {
+    if (
+      data.code !== "STUDENT_SCHEDULE_CONFLICT" &&
+      data.code !== "TEACHER_SCHEDULE_CONFLICT" &&
+      data.code !== "BATCH_SCHEDULE_CONFLICT"
+    ) {
+      return false;
+    }
+
+    setConflictModal({
+      code: data.code,
+      message:
+        data.message ||
+        "This schedule cannot be created because it conflicts with an existing schedule.",
+      conflicts: Array.isArray(data.conflicts) ? data.conflicts : [],
+    });
+
+    return true;
+  }
+
+  // ============================================================
+  // STUDENT ↔ BATCH
+  // ============================================================
+
+  async function loadStudentsForBatch(batch: Batch) {
+    try {
+      setStudentsLoading(true);
+      setStudentError("");
+
+      const [studentsResponse, assignedResponse] = await Promise.all([
+        fetch(`${API_URL}/students`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }),
+
+        fetch(`${API_URL}/batches/${batch.id}/students`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }),
+      ]);
+
+      if (
+        studentsResponse.status === 401 ||
+        assignedResponse.status === 401
+      ) {
+        window.location.href = "/login";
+        return;
+      }
+
+      const studentsData = await studentsResponse.json();
+      const assignedData = await assignedResponse.json();
+
+      if (!studentsResponse.ok || !studentsData.success) {
+        throw new Error(
+          studentsData.message || "Failed to load students."
+        );
+      }
+
+      if (!assignedResponse.ok || !assignedData.success) {
+        throw new Error(
+          assignedData.message || "Failed to load assigned students."
+        );
+      }
+
+      setAllStudents(
+        Array.isArray(studentsData.students) ? studentsData.students : []
+      );
+
+      setAssignedStudents(
+        Array.isArray(assignedData.students) ? assignedData.students : []
+      );
+    } catch (err) {
+      setStudentError(
+        err instanceof Error
+          ? err.message
+          : "Failed to load student information."
+      );
+    } finally {
+      setStudentsLoading(false);
+    }
+  }
+
+  function openStudentsModal(batch: Batch) {
+    setSelectedBatch(batch);
+    setSelectedStudentId("");
+    setStudentError("");
+    setAssignedStudents([]);
+    setAllStudents([]);
+    setIsStudentsModalOpen(true);
+
+    loadStudentsForBatch(batch);
+  }
+
+  function closeStudentsModal() {
+    if (studentActionLoading) return;
+
+    setIsStudentsModalOpen(false);
+    setSelectedStudentId("");
+    setAssignedStudents([]);
+    setAllStudents([]);
+    setStudentError("");
+  }
+
+  async function handleAssignStudent(
+    event: FormEvent<HTMLFormElement>
+  ) {
+    event.preventDefault();
+
+    if (!selectedBatch || !selectedStudentId) {
+      setStudentError("Please select a student.");
+      return;
+    }
+
+    try {
+      setStudentActionLoading(true);
+      setStudentError("");
+
+      const response = await fetch(
+        `${API_URL}/batches/${selectedBatch.id}/students`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            studentId: selectedStudentId,
+          }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (response.status === 401) {
+        window.location.href = "/login";
+        return;
+      }
+
+      if (!response.ok || !data.success) {
+        if (response.status === 409 && showConflictModal(data)) {
+          return;
+        }
+
+        throw new Error(
+          data.message || "Failed to assign student to batch."
+        );
+      }
+
+      setSelectedStudentId("");
+      await loadStudentsForBatch(selectedBatch);
+    } catch (err) {
+      setStudentError(
+        err instanceof Error
+          ? err.message
+          : "Failed to assign student to batch."
+      );
+    } finally {
+      setStudentActionLoading(false);
+    }
+  }
+
+  async function confirmRemoveStudent() {
+    if (!selectedBatch || !removingStudent) return;
+
+    try {
+      setStudentActionLoading(true);
+      setStudentError("");
+
+      const response = await fetch(
+        `${API_URL}/batches/${selectedBatch.id}/students/${removingStudent.studentId}`,
+        {
+          method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      const data = await response.json();
+
+      if (response.status === 401) {
+        window.location.href = "/login";
+        return;
+      }
+
+      if (!response.ok || !data.success) {
+        throw new Error(
+          data.message || "Failed to remove student from batch."
+        );
+      }
+
+      setRemovingStudent(null);
+      await loadStudentsForBatch(selectedBatch);
+    } catch (err) {
+      setStudentError(
+        err instanceof Error
+          ? err.message
+          : "Failed to remove student from batch."
+      );
+    } finally {
+      setStudentActionLoading(false);
+    }
+  }
+
+  // ============================================================
+  // TEACHER ↔ BATCH
+  // ============================================================
+
+  async function loadTeachersForBatch(batch: Batch) {
+    try {
+      setTeachersLoading(true);
+      setTeacherError("");
+
+      const [teachersResponse, assignedResponse] = await Promise.all([
+        fetch(`${API_URL}/teachers`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }),
+
+        fetch(`${API_URL}/batches/${batch.id}/teachers`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }),
+      ]);
+
+      if (
+        teachersResponse.status === 401 ||
+        assignedResponse.status === 401
+      ) {
+        window.location.href = "/login";
+        return;
+      }
+
+      const teachersData = await teachersResponse.json();
+      const assignedData = await assignedResponse.json();
+
+      if (!teachersResponse.ok || !teachersData.success) {
+        throw new Error(
+          teachersData.message || "Failed to load teachers."
+        );
+      }
+
+      if (!assignedResponse.ok || !assignedData.success) {
+        throw new Error(
+          assignedData.message || "Failed to load assigned teachers."
+        );
+      }
+
+      setAllTeachers(
+        Array.isArray(teachersData.teachers)
+          ? teachersData.teachers
+          : []
+      );
+
+      setAssignedTeachers(
+        Array.isArray(assignedData.teachers)
+          ? assignedData.teachers
+          : []
+      );
+    } catch (err) {
+      setTeacherError(
+        err instanceof Error
+          ? err.message
+          : "Failed to load teacher information."
+      );
+    } finally {
+      setTeachersLoading(false);
+    }
+  }
+
+  function openTeachersModal(batch: Batch) {
+    setSelectedBatch(batch);
+    setSelectedTeacherId("");
+    setTeacherError("");
+    setAssignedTeachers([]);
+    setAllTeachers([]);
+    setIsTeachersModalOpen(true);
+
+    loadTeachersForBatch(batch);
+  }
+
+  function closeTeachersModal() {
+    if (teacherActionLoading) return;
+
+    setIsTeachersModalOpen(false);
+    setSelectedTeacherId("");
+    setAssignedTeachers([]);
+    setAllTeachers([]);
+    setTeacherError("");
+  }
+
+  async function handleAssignTeacher(
+    event: FormEvent<HTMLFormElement>
+  ) {
+    event.preventDefault();
+
+    if (!selectedBatch || !selectedTeacherId) {
+      setTeacherError("Please select a teacher.");
+      return;
+    }
+
+    try {
+      setTeacherActionLoading(true);
+      setTeacherError("");
+
+      const response = await fetch(
+        `${API_URL}/batches/${selectedBatch.id}/teachers`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            teacherId: selectedTeacherId,
+          }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (response.status === 401) {
+        window.location.href = "/login";
+        return;
+      }
+
+      if (!response.ok || !data.success) {
+        if (response.status === 409 && showConflictModal(data)) {
+          return;
+        }
+
+        throw new Error(
+          data.message || "Failed to assign teacher to batch."
+        );
+      }
+
+      setSelectedTeacherId("");
+      await loadTeachersForBatch(selectedBatch);
+    } catch (err) {
+      setTeacherError(
+        err instanceof Error
+          ? err.message
+          : "Failed to assign teacher to batch."
+      );
+    } finally {
+      setTeacherActionLoading(false);
+    }
+  }
+
+  async function confirmRemoveTeacher() {
+    if (!selectedBatch || !removingTeacher) return;
+
+    try {
+      setTeacherActionLoading(true);
+      setTeacherError("");
+
+      const response = await fetch(
+        `${API_URL}/batches/${selectedBatch.id}/teachers/${removingTeacher.teacherId}`,
+        {
+          method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      const data = await response.json();
+
+      if (response.status === 401) {
+        window.location.href = "/login";
+        return;
+      }
+
+      if (!response.ok || !data.success) {
+        throw new Error(
+          data.message || "Failed to remove teacher from batch."
+        );
+      }
+
+      setRemovingTeacher(null);
+      await loadTeachersForBatch(selectedBatch);
+    } catch (err) {
+      setTeacherError(
+        err instanceof Error
+          ? err.message
+          : "Failed to remove teacher from batch."
+      );
+    } finally {
+      setTeacherActionLoading(false);
+    }
+  }
+
+  // ============================================================
+  // BATCH CRUD
+  // ============================================================
+
+  function openAddModal() {
+    setEditingBatch(null);
+    setForm(emptyForm);
+    setError("");
+    setSuccess("");
+    setIsModalOpen(true);
+  }
+
+  function openEditModal(batch: Batch) {
+    setEditingBatch(batch);
+
+    setForm({
+      name: batch.name || "",
+      description: batch.description || "",
+      startDate: batch.startDate
+        ? batch.startDate.slice(0, 10)
+        : "",
+      endDate: batch.endDate
+        ? batch.endDate.slice(0, 10)
+        : "",
+    });
+
+    setError("");
+    setSuccess("");
+    setIsModalOpen(true);
+  }
+
+  function closeModal() {
+    if (saving) return;
+
+    setIsModalOpen(false);
+    setEditingBatch(null);
+    setForm(emptyForm);
+  }
+
+  async function handleSubmit(
+    event: FormEvent<HTMLFormElement>
+  ) {
+    event.preventDefault();
+
+    if (!form.name.trim()) {
+      setError("Batch name is required.");
+      return;
+    }
+
+    try {
+      setSaving(true);
+      setError("");
+      setSuccess("");
+
+      const payload = {
+        name: form.name.trim(),
+        description: form.description.trim() || undefined,
+        startDate: form.startDate || undefined,
+        endDate: form.endDate || undefined,
+      };
+
+      const url = editingBatch
+        ? `${API_URL}/batches/${editingBatch.id}`
+        : `${API_URL}/batches`;
+
+      const method = editingBatch ? "PUT" : "POST";
+
+      const response = await fetch(url, {
+        method,
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await response.json();
+
+      if (response.status === 401) {
+        window.location.href = "/login";
+        return;
+      }
+
+      if (!response.ok || !data.success) {
+        throw new Error(
+          data.message || "Failed to save batch."
+        );
+      }
+
+      setSuccess(
+        editingBatch
+          ? "Batch updated successfully."
+          : "Batch created successfully."
+      );
+      closeModal();
+      await loadBatches();
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Failed to save batch."
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDeleteConfirmed() {
+    if (!deletingBatch) return;
+
+    try {
+      setIsDeletingBatch(true);
+      setError("");
+      setSuccess("");
+
+      const response = await fetch(
+        `${API_URL}/batches/${deletingBatch.id}`,
+        {
+          method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      const data = await response.json();
+
+      if (response.status === 401) {
+        window.location.href = "/login";
+        return;
+      }
+
+      if (!response.ok || !data.success) {
+        throw new Error(
+          data.message || "Failed to delete batch."
+        );
+      }
+
+      setSuccess(`Batch "${deletingBatch.name}" deleted successfully.`);
+      setDeletingBatch(null);
+      await loadBatches();
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Failed to delete batch."
+      );
+    } finally {
+      setIsDeletingBatch(false);
+    }
+  }
+
+  // ============================================================
+  // FILTERING
+  // ============================================================
+
+  const filteredBatches = useMemo(() => {
+    const query = search.trim().toLowerCase();
+
+    if (!query) return batches;
+
+    return batches.filter((batch) => {
+      return (
+        batch.name.toLowerCase().includes(query) ||
+        (batch.description || "")
+          .toLowerCase()
+          .includes(query)
+      );
+    });
+  }, [batches, search]);
+
+  const assignedStudentIds = useMemo(() => {
+    return new Set(
+      assignedStudents.map((item) => item.studentId)
+    );
+  }, [assignedStudents]);
+
+  const availableStudents = useMemo(() => {
+    return allStudents.filter(
+      (student) => !assignedStudentIds.has(student.id)
+    );
+  }, [allStudents, assignedStudentIds]);
+
+  const assignedTeacherIds = useMemo(() => {
+    return new Set(
+      assignedTeachers.map((item) => item.teacherId)
+    );
+  }, [assignedTeachers]);
+
+  const availableTeachers = useMemo(() => {
+    return allTeachers.filter(
+      (teacher) => !assignedTeacherIds.has(teacher.id)
+    );
+  }, [allTeachers, assignedTeacherIds]);
+
+  function activeDateRange(batch: Batch) {
+    if (!batch.startDate && !batch.endDate) {
+      return "No dates set";
+    }
+
+    const start = batch.startDate
+      ? new Date(batch.startDate).toLocaleDateString("en-IN", {
+          day: "2-digit",
+          month: "short",
+          year: "numeric",
+        })
+      : "—";
+
+    const end = batch.endDate
+      ? new Date(batch.endDate).toLocaleDateString("en-IN", {
+          day: "2-digit",
+          month: "short",
+          year: "numeric",
+        })
+      : "—";
+
+    return `${start} → ${end}`;
+  }
+
+  return (
+    <main className="w-full px-5 py-8 sm:px-8 lg:px-10">
+      <div className="mx-auto max-w-7xl">
+        {/* Header */}
+        <section className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <div className="mb-3 inline-flex items-center gap-1.5 rounded-full bg-orange-50 px-3 py-1 text-xs font-semibold text-orange-700">
+              <span>◈</span>
+              Coaching Operations
+            </div>
+
+            <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-stone-900">
+              Batches
+            </h1>
+
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-stone-500">
+              Create and manage coaching cohorts, assign instructional faculty, and organize student rosters.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={openAddModal}
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-orange-500 px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-orange-200 transition duration-200 hover:-translate-y-0.5 hover:bg-orange-600 active:translate-y-0 active:scale-[0.98]"
+          >
+            <span className="text-base leading-none">+</span>
+            <span>Add Batch</span>
+          </button>
+        </section>
+
+        {/* Alerts */}
+        {error &&
+          !isModalOpen &&
+          !isStudentsModalOpen &&
+          !isTeachersModalOpen &&
+          !deletingBatch && (
+            <div className="mt-6 flex items-center justify-between rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm font-medium text-red-700">
+              <span>{error}</span>
+              <button
+                type="button"
+                onClick={() => setError("")}
+                className="text-red-400 hover:text-red-600"
+              >
+                ✕
+              </button>
+            </div>
+          )}
+
+        {success && (
+          <div className="mt-6 flex items-center justify-between rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-4 text-sm font-medium text-emerald-800">
+            <div className="flex items-center gap-3">
+              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-100 text-xs text-emerald-700">
+                ✓
+              </span>
+              <span>{success}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setSuccess("")}
+              className="text-emerald-500 hover:text-emerald-700"
+            >
+              ✕
+            </button>
+          </div>
+        )}
+
+        {/* Summary */}
+        <section className="mt-8 grid gap-5 sm:grid-cols-2">
+          <div className="glass rounded-3xl border border-stone-200/70 bg-white/80 p-6 shadow-sm backdrop-blur-md transition duration-200 hover:-translate-y-0.5 hover:shadow-md">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-stone-400">
+              Total Batches
+            </p>
+
+            <p className="mt-2 text-3xl font-bold tracking-tight text-stone-900">
+              {batches.length}
+            </p>
+
+            <p className="mt-1 text-xs text-stone-400">
+              Active coaching cohorts
+            </p>
+          </div>
+
+          <div className="glass rounded-3xl border border-stone-200/70 bg-white/80 p-6 shadow-sm backdrop-blur-md transition duration-200 hover:-translate-y-0.5 hover:shadow-md">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-stone-400">
+              Filtered Results
+            </p>
+
+            <p className="mt-2 text-3xl font-bold tracking-tight text-stone-900">
+              {filteredBatches.length}
+            </p>
+
+            <p className="mt-1 text-xs text-stone-400">
+              Batches matching search criteria
+            </p>
+          </div>
+        </section>
+
+        {/* Search */}
+        <section className="mt-7">
+          <div className="relative">
+            <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-stone-400">
+              ⌕
+            </span>
+
+            <input
+              type="text"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Search batches by name or description..."
+              className="h-12 w-full rounded-2xl border border-stone-200 bg-white pl-11 pr-4 text-sm text-stone-900 outline-none transition placeholder:text-stone-400 hover:border-stone-300 focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
+            />
+          </div>
+        </section>
+
+        {/* Batches Table */}
+        <section className="mt-7 overflow-hidden rounded-3xl border border-stone-200/70 bg-white/80 shadow-sm backdrop-blur-md">
+          {loading ? (
+            <div className="flex min-h-80 items-center justify-center">
+              <div className="text-center">
+                <div className="mx-auto h-8 w-8 animate-spin rounded-full border-4 border-orange-100 border-t-orange-500" />
+                <p className="mt-4 text-sm font-medium text-stone-500">
+                  Loading batches...
+                </p>
+              </div>
+            </div>
+          ) : filteredBatches.length === 0 ? (
+            <div className="flex min-h-80 items-center justify-center px-6">
+              <div className="max-w-md text-center">
+                <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-orange-50 text-2xl text-orange-500">
+                  ◈
+                </div>
+
+                <h3 className="mt-5 text-lg font-semibold tracking-tight text-stone-900">
+                  {search ? "No batches found" : "No batches yet"}
+                </h3>
+
+                <p className="mt-2 text-sm leading-6 text-stone-500">
+                  {search
+                    ? "Try refining your search terms or clearing the filter."
+                    : "Create your first coaching batch to start assigning instructors, students, and schedules."}
+                </p>
+
+                {!search && (
+                  <button
+                    type="button"
+                    onClick={openAddModal}
+                    className="mt-5 inline-flex items-center justify-center rounded-xl bg-orange-500 px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-orange-200 transition duration-200 hover:-translate-y-0.5 hover:bg-orange-600 active:translate-y-0"
+                  >
+                    + Add Batch
+                  </button>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[1150px]">
+                <thead>
+                  <tr className="border-b border-stone-100 text-left">
+                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-[0.16em] text-stone-500">
+                      Batch
+                    </th>
+
+                    <th className="px-5 py-4 text-xs font-semibold uppercase tracking-[0.16em] text-stone-500">
+                      Description
+                    </th>
+
+                    <th className="px-5 py-4 text-xs font-semibold uppercase tracking-[0.16em] text-stone-500">
+                      Duration
+                    </th>
+
+                    <th className="px-5 py-4 text-xs font-semibold uppercase tracking-[0.16em] text-stone-500">
+                      Students
+                    </th>
+
+                    <th className="px-5 py-4 text-xs font-semibold uppercase tracking-[0.16em] text-stone-500">
+                      Teachers
+                    </th>
+
+                    <th className="px-6 py-4 text-right text-xs font-semibold uppercase tracking-[0.16em] text-stone-500">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {filteredBatches.map((batch) => (
+                    <tr
+                      key={batch.id}
+                      className="border-b border-stone-100 transition duration-150 last:border-b-0 hover:bg-orange-50/30"
+                    >
+                      <td className="px-6 py-4">
+                        <Link
+                          href={`/app/batches/${batch.id}`}
+                          className="group block"
+                        >
+                          <p className="text-sm font-semibold text-stone-900 transition duration-150 group-hover:text-orange-600">
+                            {batch.name}
+                          </p>
+                          <p className="mt-0.5 font-mono text-xs text-stone-400">
+                            ID: {batch.id.slice(0, 8)}...
+                          </p>
+                        </Link>
+                      </td>
+
+                      <td className="max-w-xs px-5 py-4">
+                        <p className="truncate text-sm text-stone-600">
+                          {batch.description || "—"}
+                        </p>
+                      </td>
+
+                      <td className="px-5 py-4">
+                        <p className="text-sm font-medium text-stone-600">
+                          {activeDateRange(batch)}
+                        </p>
+                      </td>
+
+                      <td className="px-5 py-4">
+                        <button
+                          type="button"
+                          onClick={() => openStudentsModal(batch)}
+                          className="rounded-xl border border-orange-200 bg-orange-50 px-3 py-1.5 text-xs font-semibold text-orange-700 transition duration-200 hover:-translate-y-0.5 hover:bg-orange-100 active:translate-y-0"
+                        >
+                          Manage Students
+                        </button>
+                      </td>
+
+                      <td className="px-5 py-4">
+                        <button
+                          type="button"
+                          onClick={() => openTeachersModal(batch)}
+                          className="rounded-xl border border-orange-200 bg-orange-50 px-3 py-1.5 text-xs font-semibold text-orange-700 transition duration-200 hover:-translate-y-0.5 hover:bg-orange-100 active:translate-y-0"
+                        >
+                          Manage Teachers
+                        </button>
+                      </td>
+
+                      <td className="px-6 py-4">
+                        <div className="flex items-center justify-end gap-2">
+                          <Link
+                            href={`/app/batches/${batch.id}`}
+                            className="inline-flex items-center justify-center rounded-xl border border-orange-100 bg-orange-50 px-3.5 py-2 text-xs font-semibold text-orange-600 transition duration-200 hover:-translate-y-0.5 hover:border-orange-200 hover:bg-orange-100 active:translate-y-0"
+                          >
+                            View Details →
+                          </Link>
+
+                          <button
+                            type="button"
+                            onClick={() => openEditModal(batch)}
+                            className="rounded-xl border border-orange-200 bg-white px-3.5 py-2 text-xs font-semibold text-orange-700 transition duration-200 hover:-translate-y-0.5 hover:border-orange-300 hover:bg-orange-50 active:translate-y-0"
+                          >
+                            Edit
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => setDeletingBatch(batch)}
+                            className="rounded-xl border border-red-100 bg-red-50 px-3.5 py-2 text-xs font-semibold text-red-600 transition duration-200 hover:-translate-y-0.5 hover:border-red-200 hover:bg-red-100 active:translate-y-0"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+
+        {/* ======================================================
+            ADD / EDIT BATCH MODAL
+        ====================================================== */}
+
+        {isModalOpen && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-stone-950/45 px-4 py-6 backdrop-blur-sm"
+            onMouseDown={(e) => {
+              if (e.target === e.currentTarget && !saving) closeModal();
+            }}
+          >
+            <div className="flex max-h-[92vh] w-full max-w-xl flex-col overflow-hidden rounded-3xl border border-orange-100 bg-[#fffdf9] shadow-2xl">
+              <div className="flex items-start justify-between gap-4 border-b border-stone-100 px-6 py-5 sm:px-7">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-orange-600">
+                    Cohort Management
+                  </p>
+
+                  <h2 className="mt-1 text-lg font-semibold tracking-tight text-stone-900">
+                    {editingBatch ? "Edit Batch" : "Add Batch"}
+                  </h2>
+
+                  <p className="mt-1 text-sm text-stone-500">
+                    {editingBatch
+                      ? "Update the cohort's duration and description."
+                      : "Configure a new coaching batch for students and teachers."}
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={closeModal}
+                  disabled={saving}
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-stone-200 text-stone-500 transition hover:border-orange-200 hover:bg-orange-50 hover:text-orange-600 disabled:opacity-50"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <form onSubmit={handleSubmit} className="overflow-y-auto">
+                <div className="px-6 py-6 sm:px-7">
+                  {error && (
+                    <div className="mb-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+                      {error}
+                    </div>
+                  )}
+
+                  <div className="space-y-4">
+                    <div>
+                      <label className="text-xs font-semibold text-stone-700">
+                        Batch Name *
+                      </label>
+
+                      <input
+                        type="text"
+                        value={form.name}
+                        onChange={(event) =>
+                          setForm((current) => ({
+                            ...current,
+                            name: event.target.value,
+                          }))
+                        }
+                        placeholder="e.g. Morning JEE Advanced - Batch A"
+                        className="mt-2 h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-900 outline-none transition placeholder:text-stone-400 focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
+                        required
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-xs font-semibold text-stone-700">
+                        Description
+                      </label>
+
+                      <textarea
+                        value={form.description}
+                        onChange={(event) =>
+                          setForm((current) => ({
+                            ...current,
+                            description: event.target.value,
+                          }))
+                        }
+                        placeholder="Brief overview or target goals for this cohort"
+                        rows={3}
+                        className="mt-2 w-full resize-none rounded-xl border border-stone-200 bg-white p-3.5 text-sm text-stone-900 outline-none transition placeholder:text-stone-400 focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
+                      />
+                    </div>
+
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div>
+                        <label className="text-xs font-semibold text-stone-700">
+                          Start Date
+                        </label>
+
+                        <input
+                          type="date"
+                          value={form.startDate}
+                          onChange={(event) =>
+                            setForm((current) => ({
+                              ...current,
+                              startDate: event.target.value,
+                            }))
+                          }
+                          className="mt-2 h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-900 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-xs font-semibold text-stone-700">
+                          End Date
+                        </label>
+
+                        <input
+                          type="date"
+                          value={form.endDate}
+                          onChange={(event) =>
+                            setForm((current) => ({
+                              ...current,
+                              endDate: event.target.value,
+                            }))
+                          }
+                          className="mt-2 h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-900 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex flex-col-reverse gap-3 border-t border-stone-100 bg-white/80 px-6 py-5 sm:flex-row sm:justify-end sm:px-7">
+                  <button
+                    type="button"
+                    onClick={closeModal}
+                    disabled={saving}
+                    className="rounded-xl border border-stone-200 bg-white px-5 py-2.5 text-sm font-semibold text-stone-600 transition hover:border-stone-300 hover:bg-stone-50 disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+
+                  <button
+                    type="submit"
+                    disabled={saving}
+                    className="rounded-xl bg-orange-500 px-6 py-2.5 text-sm font-semibold text-white shadow-md shadow-orange-200 transition duration-150 hover:-translate-y-0.5 hover:bg-orange-600 active:translate-y-0 disabled:opacity-60"
+                  >
+                    {saving
+                      ? "Saving..."
+                      : editingBatch
+                        ? "Save Changes"
+                        : "Create Batch"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* ======================================================
+            MANAGE STUDENTS MODAL
+        ====================================================== */}
+
+        {isStudentsModalOpen && selectedBatch && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-stone-950/45 px-4 py-6 backdrop-blur-sm"
+            onMouseDown={(e) => {
+              if (e.target === e.currentTarget && !studentActionLoading) closeStudentsModal();
+            }}
+          >
+            <div className="flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-3xl border border-orange-100 bg-[#fffdf9] shadow-2xl">
+              <div className="flex items-start justify-between gap-4 border-b border-stone-100 px-6 py-5 sm:px-7">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-orange-600">
+                    Cohort Roster
+                  </p>
+
+                  <h2 className="mt-1 text-lg font-semibold tracking-tight text-stone-900">
+                    {selectedBatch.name} — Students
+                  </h2>
+
+                  <p className="mt-1 text-sm text-stone-500">
+                    Assign and manage student enrollment for this coaching batch.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={closeStudentsModal}
+                  disabled={studentActionLoading}
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-stone-200 text-stone-500 transition hover:border-orange-200 hover:bg-orange-50 hover:text-orange-600 disabled:opacity-50"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="overflow-y-auto px-6 py-6 sm:px-7">
+                {studentError && (
+                  <div className="mb-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+                    {studentError}
+                  </div>
+                )}
+
+                <div className="rounded-3xl border border-orange-100 bg-orange-50/50 p-5">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-orange-700">
+                      Enroll Student
+                    </p>
+                    <p className="mt-1 text-xs text-stone-500">
+                      Select an eligible student from your institute directory.
+                    </p>
+                  </div>
+
+                  <form
+                    onSubmit={handleAssignStudent}
+                    className="mt-3 flex flex-col gap-3 sm:flex-row"
+                  >
+                    <select
+                      value={selectedStudentId}
+                      onChange={(event) =>
+                        setSelectedStudentId(event.target.value)
+                      }
+                      disabled={
+                        studentsLoading ||
+                        studentActionLoading ||
+                        availableStudents.length === 0
+                      }
+                      className="h-11 min-w-0 flex-1 rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-900 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100 disabled:cursor-not-allowed disabled:bg-stone-100"
+                    >
+                      <option value="">
+                        {studentsLoading
+                          ? "Loading students..."
+                          : availableStudents.length === 0
+                            ? "All students are already enrolled"
+                            : "Select student to enroll"}
+                      </option>
+
+                      {availableStudents.map((student) => (
+                        <option key={student.id} value={student.id}>
+                          {student.name}
+                          {student.studentCode ? ` (${student.studentCode})` : ""}
+                        </option>
+                      ))}
+                    </select>
+
+                    <button
+                      type="submit"
+                      disabled={
+                        studentsLoading ||
+                        studentActionLoading ||
+                        !selectedStudentId
+                      }
+                      className="rounded-xl bg-orange-500 px-5 py-2.5 text-xs font-semibold text-white shadow-md shadow-orange-200 transition duration-150 hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {studentActionLoading ? "Adding..." : "+ Enroll Student"}
+                    </button>
+                  </form>
+                </div>
+
+                <div className="mt-7">
+                  <div className="mb-3 flex items-center justify-between">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-stone-500">
+                        Enrolled Students
+                      </p>
+                      <p className="mt-0.5 text-xs text-stone-400">
+                        {assignedStudents.length} student{assignedStudents.length === 1 ? "" : "s"} enrolled
+                      </p>
+                    </div>
+
+                    <span className="rounded-full bg-orange-50 px-2.5 py-0.5 text-xs font-semibold text-orange-700">
+                      {assignedStudents.length}
+                    </span>
+                  </div>
+
+                  {studentsLoading ? (
+                    <div className="rounded-2xl border border-stone-200 bg-stone-50 p-8 text-center">
+                      <div className="mx-auto h-7 w-7 animate-spin rounded-full border-4 border-orange-100 border-t-orange-500" />
+                      <p className="mt-3 text-sm text-stone-500">
+                        Loading student records...
+                      </p>
+                    </div>
+                  ) : assignedStudents.length === 0 ? (
+                    <div className="rounded-2xl border border-dashed border-stone-200 bg-stone-50/70 p-8 text-center">
+                      <p className="text-sm font-semibold text-stone-700">
+                        No students enrolled yet
+                      </p>
+                      <p className="mt-1 text-xs text-stone-400">
+                        Use the selector above to enroll students into this cohort.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2.5">
+                      {assignedStudents.map((assignment) => {
+                        const student = assignment.student;
+
+                        return (
+                          <div
+                            key={assignment.id}
+                            className="flex items-center justify-between gap-3 rounded-2xl border border-stone-100 bg-stone-50/70 p-3.5 transition duration-150 hover:bg-orange-50/30"
+                          >
+                            <div className="flex min-w-0 items-center gap-3">
+                              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-orange-100 text-xs font-bold text-orange-700">
+                                {student.name
+                                  .split(" ")
+                                  .map((part) => part[0])
+                                  .slice(0, 2)
+                                  .join("")
+                                  .toUpperCase()}
+                              </div>
+
+                              <div className="min-w-0">
+                                <p className="truncate text-sm font-semibold text-stone-900">
+                                  {student.name}
+                                </p>
+                                <p className="mt-0.5 truncate text-xs text-stone-500">
+                                  {[
+                                    student.studentCode,
+                                    student.school?.name,
+                                    student.standard?.name,
+                                  ]
+                                    .filter(Boolean)
+                                    .join(" • ") || "Student"}
+                                </p>
+                              </div>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setRemovingStudent({
+                                  studentId: student.id,
+                                  studentName: student.name,
+                                })
+                              }
+                              disabled={studentActionLoading}
+                              className="rounded-xl border border-red-100 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-600 transition hover:bg-red-100 disabled:opacity-50"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ======================================================
+            MANAGE TEACHERS MODAL
+        ====================================================== */}
+
+        {isTeachersModalOpen && selectedBatch && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-stone-950/45 px-4 py-6 backdrop-blur-sm"
+            onMouseDown={(e) => {
+              if (e.target === e.currentTarget && !teacherActionLoading) closeTeachersModal();
+            }}
+          >
+            <div className="flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-3xl border border-orange-100 bg-[#fffdf9] shadow-2xl">
+              <div className="flex items-start justify-between gap-4 border-b border-stone-100 px-6 py-5 sm:px-7">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-orange-600">
+                    Faculty Allocation
+                  </p>
+
+                  <h2 className="mt-1 text-lg font-semibold tracking-tight text-stone-900">
+                    {selectedBatch.name} — Teachers
+                  </h2>
+
+                  <p className="mt-1 text-sm text-stone-500">
+                    Assign and manage teaching faculty for this coaching batch.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={closeTeachersModal}
+                  disabled={teacherActionLoading}
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-stone-200 text-stone-500 transition hover:border-orange-200 hover:bg-orange-50 hover:text-orange-600 disabled:opacity-50"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="overflow-y-auto px-6 py-6 sm:px-7">
+                {teacherError && (
+                  <div className="mb-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+                    {teacherError}
+                  </div>
+                )}
+
+                <div className="rounded-3xl border border-orange-100 bg-orange-50/50 p-5">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-orange-700">
+                      Assign Faculty
+                    </p>
+                    <p className="mt-1 text-xs text-stone-500">
+                      Select an instructor to allocate to this batch.
+                    </p>
+                  </div>
+
+                  <form
+                    onSubmit={handleAssignTeacher}
+                    className="mt-3 flex flex-col gap-3 sm:flex-row"
+                  >
+                    <select
+                      value={selectedTeacherId}
+                      onChange={(event) =>
+                        setSelectedTeacherId(event.target.value)
+                      }
+                      disabled={
+                        teachersLoading ||
+                        teacherActionLoading ||
+                        availableTeachers.length === 0
+                      }
+                      className="h-11 min-w-0 flex-1 rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-900 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100 disabled:cursor-not-allowed disabled:bg-stone-100"
+                    >
+                      <option value="">
+                        {teachersLoading
+                          ? "Loading instructors..."
+                          : availableTeachers.length === 0
+                            ? "All teachers already assigned"
+                            : "Select instructor to assign"}
+                      </option>
+
+                      {availableTeachers.map((teacher) => (
+                        <option key={teacher.id} value={teacher.id}>
+                          {teacher.name}
+                          {teacher.specialization ? ` — ${teacher.specialization}` : ""}
+                        </option>
+                      ))}
+                    </select>
+
+                    <button
+                      type="submit"
+                      disabled={
+                        teachersLoading ||
+                        teacherActionLoading ||
+                        !selectedTeacherId
+                      }
+                      className="rounded-xl bg-orange-500 px-5 py-2.5 text-xs font-semibold text-white shadow-md shadow-orange-200 transition duration-150 hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {teacherActionLoading ? "Assigning..." : "+ Assign Teacher"}
+                    </button>
+                  </form>
+                </div>
+
+                <div className="mt-7">
+                  <div className="mb-3 flex items-center justify-between">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-stone-500">
+                        Assigned Instructors
+                      </p>
+                      <p className="mt-0.5 text-xs text-stone-400">
+                        {assignedTeachers.length} instructor{assignedTeachers.length === 1 ? "" : "s"} allocated
+                      </p>
+                    </div>
+
+                    <span className="rounded-full bg-orange-50 px-2.5 py-0.5 text-xs font-semibold text-orange-700">
+                      {assignedTeachers.length}
+                    </span>
+                  </div>
+
+                  {teachersLoading ? (
+                    <div className="rounded-2xl border border-stone-200 bg-stone-50 p-8 text-center">
+                      <div className="mx-auto h-7 w-7 animate-spin rounded-full border-4 border-orange-100 border-t-orange-500" />
+                      <p className="mt-3 text-sm text-stone-500">
+                        Loading teacher records...
+                      </p>
+                    </div>
+                  ) : assignedTeachers.length === 0 ? (
+                    <div className="rounded-2xl border border-dashed border-stone-200 bg-stone-50/70 p-8 text-center">
+                      <p className="text-sm font-semibold text-stone-700">
+                        No instructors assigned
+                      </p>
+                      <p className="mt-1 text-xs text-stone-400">
+                        Use the selector above to assign instructors to this cohort.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2.5">
+                      {assignedTeachers.map((assignment) => {
+                        const teacher = assignment.teacher;
+
+                        return (
+                          <div
+                            key={assignment.id}
+                            className="flex items-center justify-between gap-3 rounded-2xl border border-stone-100 bg-stone-50/70 p-3.5 transition duration-150 hover:bg-orange-50/30"
+                          >
+                            <div className="flex min-w-0 items-center gap-3">
+                              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-orange-100 text-xs font-bold text-orange-700">
+                                {teacher.name
+                                  .split(" ")
+                                  .map((part) => part[0])
+                                  .slice(0, 2)
+                                  .join("")
+                                  .toUpperCase()}
+                              </div>
+
+                              <div className="min-w-0">
+                                <p className="truncate text-sm font-semibold text-stone-900">
+                                  {teacher.name}
+                                </p>
+                                <p className="mt-0.5 truncate text-xs text-stone-500">
+                                  {[
+                                    teacher.specialization,
+                                    teacher.email,
+                                  ]
+                                    .filter(Boolean)
+                                    .join(" • ") || "Teacher"}
+                                </p>
+                              </div>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setRemovingTeacher({
+                                  teacherId: teacher.id,
+                                  teacherName: teacher.name,
+                                })
+                              }
+                              disabled={teacherActionLoading}
+                              className="rounded-xl border border-red-100 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-600 transition hover:bg-red-100 disabled:opacity-50"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ======================================================
+            SCHEDULE CONFLICT MODAL
+        ====================================================== */}
+
+        {conflictModal && (
+          <div
+            className="fixed inset-0 z-[70] flex items-center justify-center bg-stone-950/50 px-4 py-6 backdrop-blur-sm"
+            role="dialog"
+            aria-modal="true"
+          >
+            <div className="max-h-[90vh] w-full max-w-2xl overflow-hidden rounded-3xl border border-red-100 bg-white shadow-2xl">
+              <div className="border-b border-red-100 bg-red-50/80 p-6 sm:p-7">
+                <div className="flex items-start gap-4">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-red-100 text-xl font-bold text-red-600">
+                    ⚠
+                  </div>
+
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-red-600">
+                      Schedule Conflict Detected
+                    </p>
+
+                    <h2 className="mt-1 text-lg font-semibold tracking-tight text-stone-900">
+                      {conflictModal.code === "STUDENT_SCHEDULE_CONFLICT"
+                        ? "Student Schedule Overlap"
+                        : conflictModal.code === "TEACHER_SCHEDULE_CONFLICT"
+                          ? "Teacher Schedule Overlap"
+                          : "Batch Schedule Overlap"}
+                    </h2>
+
+                    <p className="mt-1 text-sm text-stone-600">
+                      {conflictModal.code === "STUDENT_SCHEDULE_CONFLICT"
+                        ? "This student is already committed to another batch with overlapping timings."
+                        : conflictModal.code === "TEACHER_SCHEDULE_CONFLICT"
+                          ? "This teacher is scheduled to instruct another cohort during this exact time slot."
+                          : "This batch already has a class scheduled at an overlapping timing."}
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setConflictModal(null)}
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-stone-200 text-stone-500 transition hover:bg-stone-50"
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
+
+              <div className="max-h-[calc(90vh-230px)] overflow-y-auto p-6 sm:p-7">
+                <div className="rounded-2xl border border-stone-200 bg-stone-50 p-4">
+                  <p className="text-sm font-medium leading-6 text-stone-700">
+                    {conflictModal.message}
+                  </p>
+                </div>
+
+                {conflictModal.conflicts.length > 0 && (
+                  <div className="mt-5 space-y-4">
+                    {conflictModal.conflicts.map((conflict, index) => (
+                      <div
+                        key={`${conflict.type}-${index}`}
+                        className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm"
+                      >
+                        {conflict.personName && (
+                          <p className="mb-3 text-sm font-semibold text-stone-900">
+                            {conflict.personName}
+                          </p>
+                        )}
+
+                        <div className="grid gap-4 sm:grid-cols-2">
+                          <div className="rounded-2xl border border-red-100 bg-red-50/60 p-4">
+                            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-red-500">
+                              Existing Schedule
+                            </p>
+
+                            <p className="mt-2 text-sm font-bold text-stone-900">
+                              {conflict.existingBatchName || "Existing batch"}
+                            </p>
+
+                            <p className="mt-1 text-xs text-stone-600">
+                              {conflict.existingDay || "Scheduled day"}
+                            </p>
+
+                            <p className="mt-1 text-xs font-semibold text-stone-700">
+                              {conflict.existingStartTime || "—"} – {conflict.existingEndTime || "—"}
+                            </p>
+                          </div>
+
+                          <div className="rounded-2xl border border-orange-100 bg-orange-50/70 p-4">
+                            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-orange-600">
+                              Requested Schedule
+                            </p>
+
+                            <p className="mt-2 text-sm font-bold text-stone-900">
+                              {conflict.newBatchName || selectedBatch?.name || "New batch"}
+                            </p>
+
+                            <p className="mt-1 text-xs text-stone-600">
+                              {conflict.newDay || "Scheduled day"}
+                            </p>
+
+                            <p className="mt-1 text-xs font-semibold text-stone-700">
+                              {conflict.newStartTime || "—"} – {conflict.newEndTime || "—"}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div className="mt-5 rounded-2xl border border-orange-100 bg-orange-50/60 p-4">
+                  <p className="text-xs font-bold uppercase tracking-[0.12em] text-orange-800">
+                    Synaptix Conflict Rule
+                  </p>
+                  <p className="mt-1 text-xs leading-5 text-stone-600">
+                    Students and teachers can belong to multiple batches, but their timings cannot overlap. Consecutive classes (e.g. 4:00–5:00 PM and 5:00–6:00 PM) are permitted.
+                  </p>
+                </div>
+
+                <div className="mt-6 flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => setConflictModal(null)}
+                    className="rounded-xl bg-orange-500 px-6 py-2.5 text-xs font-semibold text-white shadow-md shadow-orange-200 transition hover:bg-orange-600"
+                  >
+                    Understood
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ======================================================
+            DELETE BATCH CONFIRMATION MODAL
+        ====================================================== */}
+        {deletingBatch && (
+          <div
+            className="fixed inset-0 z-[110] flex items-center justify-center bg-stone-950/45 p-4 backdrop-blur-sm"
+            onMouseDown={(e) => {
+              if (e.target === e.currentTarget && !isDeletingBatch) setDeletingBatch(null);
+            }}
+          >
+            <div className="w-full max-w-md overflow-hidden rounded-3xl border border-red-100 bg-white p-6 shadow-2xl">
+              <div className="flex items-center gap-4">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-red-50 text-xl font-bold text-red-600">
+                  ⚠
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold tracking-tight text-stone-900">
+                    Delete Batch
+                  </h3>
+                  <p className="mt-0.5 text-xs text-stone-500">
+                    Permanent cohort removal
+                  </p>
+                </div>
+              </div>
+
+              <p className="mt-4 text-sm leading-6 text-stone-600">
+                Are you sure you want to delete{" "}
+                <strong className="font-semibold text-stone-900">
+                  {deletingBatch.name}
+                </strong>
+                ? This will unassign all students, instructors, and timetables linked to this cohort.
+              </p>
+
+              <div className="mt-6 flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setDeletingBatch(null)}
+                  disabled={isDeletingBatch}
+                  className="rounded-xl border border-stone-200 bg-white px-5 py-2.5 text-xs font-semibold text-stone-600 transition hover:border-stone-300 hover:bg-stone-50 disabled:opacity-60"
+                >
+                  Cancel
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleDeleteConfirmed}
+                  disabled={isDeletingBatch}
+                  className="rounded-xl bg-red-600 px-5 py-2.5 text-xs font-semibold text-white shadow-md shadow-red-200 transition duration-150 hover:bg-red-700 disabled:opacity-60"
+                >
+                  {isDeletingBatch ? "Deleting..." : "Delete Batch"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ======================================================
+            REMOVE STUDENT FROM BATCH CONFIRMATION MODAL
+        ====================================================== */}
+        {removingStudent && (
+          <div
+            className="fixed inset-0 z-[120] flex items-center justify-center bg-stone-950/45 p-4 backdrop-blur-sm"
+            onMouseDown={(e) => {
+              if (e.target === e.currentTarget && !studentActionLoading) setRemovingStudent(null);
+            }}
+          >
+            <div className="w-full max-w-md overflow-hidden rounded-3xl border border-red-100 bg-white p-6 shadow-2xl">
+              <div className="flex items-center gap-4">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-red-50 text-xl font-bold text-red-600">
+                  ⚠
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold tracking-tight text-stone-900">
+                    Remove Student
+                  </h3>
+                  <p className="mt-0.5 text-xs text-stone-500">
+                    Cohort unenrollment
+                  </p>
+                </div>
+              </div>
+
+              <p className="mt-4 text-sm leading-6 text-stone-600">
+                Are you sure you want to remove{" "}
+                <strong className="font-semibold text-stone-900">
+                  {removingStudent.studentName}
+                </strong>{" "}
+                from <strong className="font-semibold text-stone-900">{selectedBatch?.name}</strong>?
+              </p>
+
+              <div className="mt-6 flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setRemovingStudent(null)}
+                  disabled={studentActionLoading}
+                  className="rounded-xl border border-stone-200 bg-white px-5 py-2.5 text-xs font-semibold text-stone-600 transition hover:border-stone-300 hover:bg-stone-50 disabled:opacity-60"
+                >
+                  Cancel
+                </button>
+
+                <button
+                  type="button"
+                  onClick={confirmRemoveStudent}
+                  disabled={studentActionLoading}
+                  className="rounded-xl bg-red-600 px-5 py-2.5 text-xs font-semibold text-white shadow-md shadow-red-200 transition duration-150 hover:bg-red-700 disabled:opacity-60"
+                >
+                  {studentActionLoading ? "Removing..." : "Remove Student"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ======================================================
+            REMOVE TEACHER FROM BATCH CONFIRMATION MODAL
+        ====================================================== */}
+        {removingTeacher && (
+          <div
+            className="fixed inset-0 z-[120] flex items-center justify-center bg-stone-950/45 p-4 backdrop-blur-sm"
+            onMouseDown={(e) => {
+              if (e.target === e.currentTarget && !teacherActionLoading) setRemovingTeacher(null);
+            }}
+          >
+            <div className="w-full max-w-md overflow-hidden rounded-3xl border border-red-100 bg-white p-6 shadow-2xl">
+              <div className="flex items-center gap-4">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-red-50 text-xl font-bold text-red-600">
+                  ⚠
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold tracking-tight text-stone-900">
+                    Unassign Teacher
+                  </h3>
+                  <p className="mt-0.5 text-xs text-stone-500">
+                    Faculty reallocation
+                  </p>
+                </div>
+              </div>
+
+              <p className="mt-4 text-sm leading-6 text-stone-600">
+                Are you sure you want to unassign{" "}
+                <strong className="font-semibold text-stone-900">
+                  {removingTeacher.teacherName}
+                </strong>{" "}
+                from <strong className="font-semibold text-stone-900">{selectedBatch?.name}</strong>?
+              </p>
+
+              <div className="mt-6 flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setRemovingTeacher(null)}
+                  disabled={teacherActionLoading}
+                  className="rounded-xl border border-stone-200 bg-white px-5 py-2.5 text-xs font-semibold text-stone-600 transition hover:border-stone-300 hover:bg-stone-50 disabled:opacity-60"
+                >
+                  Cancel
+                </button>
+
+                <button
+                  type="button"
+                  onClick={confirmRemoveTeacher}
+                  disabled={teacherActionLoading}
+                  className="rounded-xl bg-red-600 px-5 py-2.5 text-xs font-semibold text-white shadow-md shadow-red-200 transition duration-150 hover:bg-red-700 disabled:opacity-60"
+                >
+                  {teacherActionLoading ? "Unassigning..." : "Unassign Teacher"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </main>
+  );
+}

@@ -1,0 +1,605 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+/**
+ * =========================
+ * INSTITUTE & ADMIN
+ * =========================
+ */
+
+model Institute {
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  phone     String?
+  logoUrl           String?
+  logoOriginalUrl   String?
+  logoCropState     Json?
+  bannerUrl         String?
+  bannerOriginalUrl String?
+  bannerCropState   Json?
+  address   String?
+  city      String?
+  state     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  admins             Admin[]
+  schools            School[]
+  students           Student[]
+  teachers           Teacher[]
+  batches            Batch[]
+  subjects           Subject[]
+  exams              Exam[]
+  topics             Topic[]
+  teachingProgress   TeachingProgress[]
+  attendanceRecords  Attendance[]
+  assessments        Assessment[]
+  performanceRecords PerformanceRecord[]
+  questionPapers     QuestionPaper[]
+  importantQuestions ImportantQuestion[]
+  files              FileAsset[]
+  academicPlans      AcademicPlan[]
+  recommendations    Recommendation[]
+}
+
+model Admin {
+  id           String   @id @default(cuid())
+  instituteId  String
+  name         String
+  email        String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  institute Institute @relation(fields: [instituteId], references: [id], onDelete: Cascade)
+
+  uploadedFiles FileAsset[]
+}
+
+/**
+ * =========================
+ * SCHOOL / STANDARD / STUDENT
+ * =========================
+ */
+
+model School {
+  id          String   @id @default(cuid())
+  instituteId String
+  name        String
+  address     String?
+  city        String?
+  state       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  institute    Institute             @relation(fields: [instituteId], references: [id], onDelete: Cascade)
+  standards    Standard[]
+  students     Student[]
+  exams        Exam[]
+  requirements SyllabusRequirement[]
+
+  @@unique([instituteId, name])
+}
+
+model Standard {
+  id        String   @id @default(cuid())
+  schoolId  String
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  school       School                @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  students     Student[]
+  subjects     SchoolSubject[]
+  requirements SyllabusRequirement[]
+
+  @@unique([schoolId, name])
+}
+
+model Student {
+  id          String    @id @default(cuid())
+  instituteId String
+  schoolId    String
+  standardId  String
+  studentCode String?
+  name        String
+  email       String?
+  phone       String?
+  dateOfBirth DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  institute Institute @relation(fields: [instituteId], references: [id], onDelete: Cascade)
+  school    School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  standard  Standard  @relation(fields: [standardId], references: [id], onDelete: Cascade)
+
+  batches            StudentBatch[]
+  attendanceRecords  Attendance[]
+  performanceRecords PerformanceRecord[]
+
+  @@index([instituteId])
+  @@index([schoolId])
+  @@index([standardId])
+}
+
+/**
+ * =========================
+ * TEACHERS & BATCHES
+ * =========================
+ */
+
+model Teacher {
+  id             String   @id @default(cuid())
+  instituteId    String
+  name           String
+  email          String?
+  phone          String?
+  specialization String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  institute Institute @relation(fields: [instituteId], references: [id], onDelete: Cascade)
+
+  batches          BatchTeacher[]
+  teachingProgress TeachingProgress[]
+  schedules        BatchSchedule[]
+
+  @@index([instituteId])
+}
+
+model Batch {
+  id          String    @id @default(cuid())
+  instituteId String
+  name        String
+  description String?
+  startDate   DateTime?
+  endDate     DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  institute Institute @relation(fields: [instituteId], references: [id], onDelete: Cascade)
+
+  students         StudentBatch[]
+  teachers         BatchTeacher[]
+  schedules        BatchSchedule[]
+  teachingProgress TeachingProgress[]
+  assessments      Assessment[]
+  academicPlans    AcademicPlan[]
+
+  @@unique([instituteId, name])
+  @@index([instituteId])
+}
+
+model StudentBatch {
+  id        String   @id @default(cuid())
+  studentId String
+  batchId   String
+  joinedAt  DateTime @default(now())
+
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  batch   Batch   @relation(fields: [batchId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, batchId])
+}
+
+model BatchTeacher {
+  id        String @id @default(cuid())
+  batchId   String
+  teacherId String
+
+  batch   Batch   @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  teacher Teacher @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+
+  @@unique([batchId, teacherId])
+}
+
+/**
+ * =========================
+ * SUBJECTS & SYLLABUS
+ * =========================
+ */
+
+model Subject {
+  id          String   @id @default(cuid())
+  instituteId String
+  name        String
+  code        String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  institute      Institute             @relation(fields: [instituteId], references: [id], onDelete: Cascade)
+  schoolSubjects SchoolSubject[]
+  topics         Topic[]
+  exams          Exam[]
+  requirements   SyllabusRequirement[]
+  examSchedules  ExamSchedule[]
+
+  @@unique([instituteId, name])
+}
+
+model SchoolSubject {
+  id         String @id @default(cuid())
+  standardId String
+  subjectId  String
+
+  standard Standard @relation(fields: [standardId], references: [id], onDelete: Cascade)
+  subject  Subject  @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+
+  @@unique([standardId, subjectId])
+}
+
+model Topic {
+  id          String   @id @default(cuid())
+  instituteId String
+  subjectId   String
+  name        String
+  description String?
+  orderIndex  Int?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  institute Institute @relation(fields: [instituteId], references: [id], onDelete: Cascade)
+  subject   Subject   @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+
+  requirements     SyllabusRequirement[]
+  teachingProgress TeachingProgress[]
+
+  @@unique([subjectId, name])
+  @@index([instituteId])
+}
+
+model SyllabusRequirement {
+  id         String   @id @default(cuid())
+  schoolId   String
+  standardId String
+  subjectId  String
+  topicId    String
+  required   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+
+  school   School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  standard Standard @relation(fields: [standardId], references: [id], onDelete: Cascade)
+  subject  Subject  @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  topic    Topic    @relation(fields: [topicId], references: [id], onDelete: Cascade)
+
+  @@unique([schoolId, standardId, subjectId, topicId])
+  @@index([schoolId])
+  @@index([standardId])
+  @@index([subjectId])
+  @@index([topicId])
+}
+
+/**
+ * =========================
+ * EXAMS
+ * =========================
+ */
+
+model Exam {
+  id           String   @id @default(cuid())
+  instituteId  String
+  schoolId     String
+  name         String
+  academicYear String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  institute Institute @relation(fields: [instituteId], references: [id], onDelete: Cascade)
+  school    School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  schedules ExamSchedule[]
+  subject   Subject?       @relation(fields: [subjectId], references: [id])
+  subjectId String?
+
+  @@index([instituteId])
+  @@index([schoolId])
+}
+
+model ExamSchedule {
+  id           String    @id @default(cuid())
+  examId       String
+  subjectId    String
+  examDate     DateTime
+  startTime    DateTime?
+  endTime      DateTime?
+  totalMarks   Int?
+  syllabusNote String?
+
+  exam    Exam    @relation(fields: [examId], references: [id], onDelete: Cascade)
+  subject Subject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+
+  @@index([examDate])
+}
+
+/**
+ * =========================
+ * TEACHING PROGRESS
+ * =========================
+ */
+
+model TeachingProgress {
+  id          String         @id @default(cuid())
+  instituteId String
+  batchId     String
+  topicId     String
+  teacherId   String?
+  status      ProgressStatus @default(NOT_STARTED)
+  startedAt   DateTime?
+  completedAt DateTime?
+  notes       String?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  institute Institute @relation(fields: [instituteId], references: [id], onDelete: Cascade)
+  batch     Batch     @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  topic     Topic     @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  teacher   Teacher?  @relation(fields: [teacherId], references: [id], onDelete: SetNull)
+
+  @@unique([batchId, topicId])
+  @@index([instituteId])
+}
+
+enum ProgressStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+}
+
+/**
+ * =========================
+ * BATCH SCHEDULE
+ * =========================
+ */
+
+model BatchSchedule {
+  id        String   @id @default(cuid())
+  batchId   String
+  teacherId String?
+  dayOfWeek Int
+  startTime String
+  endTime   String
+  subjectId String?
+  room      String?
+  createdAt DateTime @default(now())
+
+  batch   Batch    @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  teacher Teacher? @relation(fields: [teacherId], references: [id], onDelete: SetNull)
+
+  @@index([batchId])
+}
+
+/**
+ * =========================
+ * ATTENDANCE
+ * =========================
+ */
+
+model Attendance {
+  id          String           @id @default(cuid())
+  instituteId String
+  studentId   String
+  date        DateTime
+  status      AttendanceStatus
+  remarks     String?
+  createdAt   DateTime         @default(now())
+
+  institute Institute @relation(fields: [instituteId], references: [id], onDelete: Cascade)
+  student   Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, date])
+  @@index([instituteId])
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LATE
+  EXCUSED
+}
+
+/**
+ * =========================
+ * TESTS & PERFORMANCE
+ * =========================
+ */
+
+model Assessment {
+  id             String    @id @default(cuid())
+  instituteId    String
+  batchId        String?
+  name           String
+  subject        String?
+  totalMarks     Int?
+  assessmentDate DateTime?
+  createdAt      DateTime  @default(now())
+
+  institute Institute @relation(fields: [instituteId], references: [id], onDelete: Cascade)
+  batch     Batch?    @relation(fields: [batchId], references: [id], onDelete: SetNull)
+
+  performanceRecords PerformanceRecord[]
+
+  @@index([instituteId])
+}
+
+model PerformanceRecord {
+  id            String   @id @default(cuid())
+  instituteId   String
+  studentId     String
+  assessmentId  String
+  marksObtained Float
+  percentage    Float?
+  remarks       String?
+  createdAt     DateTime @default(now())
+
+  institute  Institute  @relation(fields: [instituteId], references: [id], onDelete: Cascade)
+  student    Student    @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  assessment Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, assessmentId])
+  @@index([instituteId])
+}
+
+/**
+ * =========================
+ * QUESTION INTELLIGENCE
+ * =========================
+ */
+
+model QuestionPaper {
+  id            String   @id @default(cuid())
+  instituteId   String
+  schoolName    String?
+  standardName  String?
+  subjectName   String?
+  academicYear  String?
+  title         String
+  fileUrl       String?
+  extractedText String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  institute Institute @relation(fields: [instituteId], references: [id], onDelete: Cascade)
+
+  @@index([instituteId])
+}
+
+model ImportantQuestion {
+  id           String   @id @default(cuid())
+  instituteId  String
+  schoolName   String?
+  standardName String?
+  subjectName  String?
+  questionText String
+  source       String?
+  importance   Int?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  institute Institute @relation(fields: [instituteId], references: [id], onDelete: Cascade)
+
+  @@index([instituteId])
+}
+
+/**
+ * =========================
+ * FILE MANAGEMENT
+ * =========================
+ */
+
+model FileAsset {
+  id           String   @id @default(cuid())
+  instituteId  String
+  uploadedById String?
+  fileName     String
+  fileType     String
+  fileSize     Int?
+  storageUrl   String
+  entityType   String?
+  entityId     String?
+  createdAt    DateTime @default(now())
+
+  institute  Institute @relation(fields: [instituteId], references: [id], onDelete: Cascade)
+  uploadedBy Admin?    @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
+
+  @@index([instituteId])
+  @@index([entityType, entityId])
+}
+
+/**
+ * =========================
+ * AI ACADEMIC PLANNER
+ * =========================
+ */
+
+model AcademicPlan {
+  id          String     @id @default(cuid())
+  instituteId String
+  batchId     String?
+  title       String
+  description String?
+  generatedBy String?
+  status      PlanStatus @default(DRAFT)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  institute Institute @relation(fields: [instituteId], references: [id], onDelete: Cascade)
+  batch     Batch?    @relation(fields: [batchId], references: [id], onDelete: SetNull)
+
+  items AcademicPlanItem[]
+
+  @@index([instituteId])
+}
+
+model AcademicPlanItem {
+  id          String       @id @default(cuid())
+  planId      String
+  date        DateTime
+  title       String
+  description String?
+  type        PlanItemType
+  priority    Int?
+  createdAt   DateTime     @default(now())
+
+  plan AcademicPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@index([date])
+}
+
+enum PlanStatus {
+  DRAFT
+  ACTIVE
+  COMPLETED
+  ARCHIVED
+}
+
+enum PlanItemType {
+  TEACHING
+  REVISION
+  TEST
+  MOCK
+  PRACTICE
+}
+
+/**
+ * =========================
+ * RECOMMENDATIONS
+ * =========================
+ */
+
+model Recommendation {
+  id          String                 @id @default(cuid())
+  instituteId String
+  title       String
+  description String
+  category    RecommendationCategory
+  priority    RecommendationPriority
+  isRead      Boolean                @default(false)
+  createdAt   DateTime               @default(now())
+
+  institute Institute @relation(fields: [instituteId], references: [id], onDelete: Cascade)
+
+  @@index([instituteId])
+}
+
+enum RecommendationCategory {
+  SYLLABUS
+  EXAM
+  ATTENDANCE
+  PERFORMANCE
+  QUESTION_INTELLIGENCE
+  BATCH
+  GENERAL
+}
+
+enum RecommendationPriority {
+  LOW
+  MEDIUM
+  HIGH
+}

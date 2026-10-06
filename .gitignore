@@ -1,0 +1,33 @@
+# Dependencies
+node_modules/
+*/node_modules/
+
+# Production builds
+dist/
+*/dist/
+.next/
+*/.next/
+out/
+*/out/
+build/
+*/build/
+
+# Environment files
+.env
+.env*
+*.env
+*/.env
+*/.env*
+
+# System & Cache
+.DS_Store
+Thumbs.db
+*.tsbuildinfo
+*/tsconfig.tsbuildinfo
+
+# IDE & Editor folders
+.vscode/
+.idea/
+.claude/
+.windsurf/
+.agents/
