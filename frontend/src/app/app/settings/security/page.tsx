@@ -4,49 +4,7 @@ import Link from "next/link";
 import { FormEvent, useState } from "react";
 
 import { API_BASE_URL } from "@/lib/api";
-
-function EyeIcon({ hidden }: { hidden: boolean }) {
-  if (hidden) {
-    return (
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        className="h-5 w-5"
-      >
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.26 19.5 12 19.5c1.684 0 3.273-.38 4.686-1.057M6.228 6.228A10.45 10.45 0 0112 4.5c4.74 0 8.773 3.162 10.066 7.5a10.523 10.523 0 01-4.132 5.411M6.228 6.228L3 3m3.228 3.228l3.06 3.06m0 0a3 3 0 104.243 4.243m-4.243-4.243l4.243 4.243m0 0L21 21"
-        />
-      </svg>
-    );
-  }
-
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      className="h-5 w-5"
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M2.062 12.348a1 1 0 010-.696C3.423 7.585 7.32 4.5 12 4.5s8.577 3.085 9.938 7.152a1 1 0 010 .696C20.577 16.415 16.68 19.5 12 19.5s-8.577-3.085-9.938-7.152z"
-      />
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-      />
-    </svg>
-  );
-}
+import { EyeIcon } from "@/components/EyeIcon";
 
 export default function SecuritySettingsPage() {
   const [currentPassword, setCurrentPassword] = useState("");
@@ -211,9 +169,9 @@ export default function SecuritySettingsPage() {
                       ? "Hide current password"
                       : "Show current password"
                   }
-                  className="absolute right-2.5 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-lg text-stone-400 transition hover:bg-orange-50 hover:text-orange-600"
+                  className="absolute right-2.5 top-1/2 z-10 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-lg bg-white/90 text-stone-400 backdrop-blur-xs transition hover:bg-orange-50 hover:text-orange-600 focus:outline-none"
                 >
-                  <EyeIcon hidden={showCurrentPassword} />
+                  <EyeIcon show={showCurrentPassword} />
                 </button>
               </div>
             </div>
@@ -247,9 +205,9 @@ export default function SecuritySettingsPage() {
                       ? "Hide new password"
                       : "Show new password"
                   }
-                  className="absolute right-2.5 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-lg text-stone-400 transition hover:bg-orange-50 hover:text-orange-600"
+                  className="absolute right-2.5 top-1/2 z-10 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-lg bg-white/90 text-stone-400 backdrop-blur-xs transition hover:bg-orange-50 hover:text-orange-600 focus:outline-none"
                 >
-                  <EyeIcon hidden={showNewPassword} />
+                  <EyeIcon show={showNewPassword} />
                 </button>
               </div>
 
@@ -287,9 +245,9 @@ export default function SecuritySettingsPage() {
                       ? "Hide confirmation password"
                       : "Show confirmation password"
                   }
-                  className="absolute right-2.5 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-lg text-stone-400 transition hover:bg-orange-50 hover:text-orange-600"
+                  className="absolute right-2.5 top-1/2 z-10 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-lg bg-white/90 text-stone-400 backdrop-blur-xs transition hover:bg-orange-50 hover:text-orange-600 focus:outline-none"
                 >
-                  <EyeIcon hidden={showConfirmPassword} />
+                  <EyeIcon show={showConfirmPassword} />
                 </button>
               </div>
             </div>

@@ -3,6 +3,7 @@
 import { FormEvent, useState } from "react";
 import Link from "next/link";
 import { API_BASE } from "@/lib/api";
+import { EyeIcon } from "@/components/EyeIcon";
 
 export default function RegisterPage() {
   const [instituteName, setInstituteName] = useState("");
@@ -114,9 +115,8 @@ export default function RegisterPage() {
                 />
               </div>
             </div>
-
-            <div className="mt-8 max-w-md">
-              <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-orange-400/20 bg-orange-400/10 px-3 py-1.5 text-xs font-semibold text-orange-300">
+            <div className="mt-6 max-w-md">
+              <div className="mb-3.5 inline-flex items-center gap-2 rounded-full border border-orange-400/20 bg-orange-400/10 px-3 py-1.5 text-xs font-semibold text-orange-300">
                 <span>✳</span>
                 Institute workspace
               </div>
@@ -284,6 +284,9 @@ export default function RegisterPage() {
                       onChange={(event) => setPassword(event.target.value)}
                       placeholder="At least 8 characters"
                       autoComplete="new-password"
+                      data-lpignore="true"
+                      data-1p-ignore="true"
+                      spellCheck={false}
                       required
                       minLength={8}
                       className="h-12 w-full rounded-xl border border-stone-200 bg-white/80 px-4 pr-12 text-sm text-stone-800 outline-none transition placeholder:text-stone-400 focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
@@ -299,44 +302,9 @@ export default function RegisterPage() {
                           ? "Hide password"
                           : "Show password"
                       }
-                      className="absolute right-3 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg text-stone-400 transition hover:bg-orange-50 hover:text-orange-600"
+                      className="absolute right-2.5 top-1/2 z-10 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg bg-white/90 text-stone-400 backdrop-blur-xs transition hover:bg-orange-50 hover:text-orange-600 focus:outline-none"
                     >
-                      {showPassword ? (
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          className="h-5 w-5"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.26 19.5 12 19.5c1.684 0 3.273-.38 4.686-1.057M6.228 6.228A10.45 10.45 0 0112 4.5c4.74 0 8.773 3.162 10.066 7.5a10.523 10.523 0 01-4.132 5.411M6.228 6.228L3 3m3.228 3.228l3.06 3.06m0 0a3 3 0 104.243 4.243m-4.243-4.243l4.243 4.243m0 0L21 21"
-                          />
-                        </svg>
-                      ) : (
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          className="h-5 w-5"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            d="M2.062 12.348a1 1 0 010-.696C3.423 7.585 7.32 4.5 12 4.5s8.577 3.085 9.938 7.152a1 1 0 010 .696C20.577 16.415 16.68 19.5 12 19.5s-8.577-3.085-9.938-7.152z"
-                          />
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-                          />
-                        </svg>
-                      )}
+                      <EyeIcon show={showPassword} />
                     </button>
                   </div>
                 </div>
@@ -360,6 +328,9 @@ export default function RegisterPage() {
                       }
                       placeholder="Re-enter your password"
                       autoComplete="new-password"
+                      data-lpignore="true"
+                      data-1p-ignore="true"
+                      spellCheck={false}
                       required
                       minLength={8}
                       className="h-12 w-full rounded-xl border border-stone-200 bg-white/80 px-4 pr-12 text-sm text-stone-800 outline-none transition placeholder:text-stone-400 focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
@@ -377,44 +348,9 @@ export default function RegisterPage() {
                           ? "Hide confirm password"
                           : "Show confirm password"
                       }
-                      className="absolute right-3 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg text-stone-400 transition hover:bg-orange-50 hover:text-orange-600"
+                      className="absolute right-2.5 top-1/2 z-10 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg bg-white/90 text-stone-400 backdrop-blur-xs transition hover:bg-orange-50 hover:text-orange-600 focus:outline-none"
                     >
-                      {showConfirmPassword ? (
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          className="h-5 w-5"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.26 19.5 12 19.5c1.684 0 3.273-.38 4.686-1.057M6.228 6.228A10.45 10.45 0 0112 4.5c4.74 0 8.773 3.162 10.066 7.5a10.523 10.45 0 01-4.132 5.411M6.228 6.228L3 3m3.228 3.228l3.06 3.06m0 0a3 3 0 104.243 4.243m-4.243-4.243l4.243 4.243m0 0L21 21"
-                          />
-                        </svg>
-                      ) : (
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          className="h-5 w-5"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            d="M2.062 12.348a1 1 0 010-.696C3.423 7.585 7.32 4.5 12 4.5s8.577-3.085-9.938-7.152z"
-                          />
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-                          />
-                        </svg>
-                      )}
+                      <EyeIcon show={showConfirmPassword} />
                     </button>
                   </div>
                 </div>

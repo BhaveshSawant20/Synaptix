@@ -45,10 +45,28 @@ a {
   color: #431407;
 }
 
-/* Hide native Edge / IE password reveal icon so custom eye icon is always shown cleanly */
+/* Hide native browser password reveal, credentials autofill, and password generator icons */
 input::-ms-reveal,
 input::-ms-clear {
   display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+input::-webkit-credentials-auto-fill-button,
+input::-webkit-strong-password-auto-fill-button,
+input::-webkit-caps-lock-indicator,
+input::-webkit-contacts-auto-fill-button {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+  position: absolute !important;
+  right: 0 !important;
+  width: 0 !important;
+  height: 0 !important;
+  opacity: 0 !important;
 }
 
 .glass {
