@@ -115,16 +115,18 @@ function getDaysUntil(dateString: string) {
 
 function getGreeting(name: string) {
   const hour = new Date().getHours();
+  const trimmed = name?.trim();
+  const suffix = trimmed ? `, ${trimmed}` : "";
 
   if (hour < 12) {
-    return `Good morning, ${name}`;
+    return `Good morning${suffix}`;
   }
 
   if (hour < 17) {
-    return `Good afternoon, ${name}`;
+    return `Good afternoon${suffix}`;
   }
 
-  return `Good evening, ${name}`;
+  return `Good evening${suffix}`;
 }
 
 function getInitials(name: string) {
@@ -482,8 +484,7 @@ export default function DashboardPage() {
                   institute?.bannerSignedUrl ? "text-white" : "text-stone-900"
                 }`}
               >
-                {getGreeting(adminName)}
-                {adminName ? `, ${adminName}` : ""}.
+                {getGreeting(adminName)}.
               </h1>
 
               <p
