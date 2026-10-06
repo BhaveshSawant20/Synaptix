@@ -156,7 +156,7 @@ export default function RegisterPage() {
               </div>
             </div>
 
-            <p className="text-xs text-stone-500">
+            <p className="mt-10 border-t border-white/10 pt-5 text-xs text-stone-500">
               © 2026 SYNAPTIX. All rights reserved.
             </p>
           </section>

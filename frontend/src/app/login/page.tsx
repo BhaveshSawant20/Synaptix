@@ -92,24 +92,24 @@ export default function LoginPage() {
               </div>
             </div>
 
-            <div className="mt-8 max-w-md">
-              <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-orange-400/20 bg-orange-400/10 px-3 py-1.5 text-xs font-semibold text-orange-300">
+            <div className="mt-6 max-w-md">
+              <div className="mb-3.5 inline-flex items-center gap-2 rounded-full border border-orange-400/20 bg-orange-400/10 px-3 py-1.5 text-xs font-semibold text-orange-300">
                 <span>✳</span>
                 Institute workspace
               </div>
 
-              <h1 className="text-4xl font-semibold leading-tight tracking-tight">
+              <h1 className="text-3xl font-semibold leading-tight tracking-tight sm:text-4xl">
                 Your academics,
                 <br />
                 <span className="text-orange-400">in focus.</span>
               </h1>
 
-              <p className="mt-5 text-sm leading-6 text-stone-400">
+              <p className="mt-3.5 text-sm leading-6 text-stone-400">
                 Manage your institute&apos;s schools, students, batches,
                 academics and performance from one connected workspace.
               </p>
 
-              <div className="mt-8 space-y-3">
+              <div className="mt-5 space-y-2.5">
                 {[
                   "Multi-school academic management",
                   "Centralized batch information",
@@ -129,7 +129,7 @@ export default function LoginPage() {
               </div>
             </div>
 
-            <p className="text-xs text-stone-500">
+            <p className="mt-10 border-t border-white/10 pt-5 text-xs text-stone-500">
               © 2026 SYNAPTIX. All rights reserved.
             </p>
           </section>
