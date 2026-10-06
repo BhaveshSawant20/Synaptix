@@ -106,7 +106,7 @@ export default function RegisterPage() {
               </Link>
 
               {/* Brand Banner Card */}
-              <div className="mt-6 overflow-hidden rounded-2xl border border-white/10 bg-stone-950/60 shadow-xl shadow-black/40 transition-all duration-300 hover:border-orange-500/30">
+              <div className="mt-5 overflow-hidden rounded-2xl border border-white/10 bg-stone-950/60 shadow-xl shadow-black/40 transition-all duration-300 hover:border-orange-500/30">
                 <img
                   src="/synaptix-banner-dark.jpg"
                   alt="Synaptix Coaching Intelligence Banner"
@@ -115,8 +115,8 @@ export default function RegisterPage() {
               </div>
             </div>
 
-            <div className="max-w-md">
-              <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-orange-400/20 bg-orange-400/10 px-3 py-1.5 text-xs font-semibold text-orange-300">
+            <div className="mt-8 max-w-md">
+              <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-orange-400/20 bg-orange-400/10 px-3 py-1.5 text-xs font-semibold text-orange-300">
                 <span>✳</span>
                 Institute workspace
               </div>
