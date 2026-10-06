@@ -303,7 +303,7 @@ export default function RegisterPage() {
                           ? "Hide password"
                           : "Show password"
                       }
-                      className="absolute right-2.5 top-1/2 z-10 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg bg-white/90 text-stone-400 backdrop-blur-xs transition hover:bg-orange-50 hover:text-orange-600 focus:outline-none"
+                      className="absolute right-2.5 top-1/2 z-10 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg bg-white/90 text-stone-400 backdrop-blur-sm transition hover:bg-orange-50 hover:text-orange-600 focus:outline-none"
                     >
                       <EyeIcon show={showPassword} />
                     </button>
@@ -349,7 +349,7 @@ export default function RegisterPage() {
                           ? "Hide confirm password"
                           : "Show confirm password"
                       }
-                      className="absolute right-2.5 top-1/2 z-10 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg bg-white/90 text-stone-400 backdrop-blur-xs transition hover:bg-orange-50 hover:text-orange-600 focus:outline-none"
+                      className="absolute right-2.5 top-1/2 z-10 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg bg-white/90 text-stone-400 backdrop-blur-sm transition hover:bg-orange-50 hover:text-orange-600 focus:outline-none"
                     >
                       <EyeIcon show={showConfirmPassword} />
                     </button>

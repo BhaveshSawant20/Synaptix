@@ -169,7 +169,7 @@ export default function SecuritySettingsPage() {
                       ? "Hide current password"
                       : "Show current password"
                   }
-                  className="absolute right-2.5 top-1/2 z-10 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-lg bg-white/90 text-stone-400 backdrop-blur-xs transition hover:bg-orange-50 hover:text-orange-600 focus:outline-none"
+                  className="absolute right-2.5 top-1/2 z-10 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-lg bg-white/90 text-stone-400 backdrop-blur-sm transition hover:bg-orange-50 hover:text-orange-600 focus:outline-none"
                 >
                   <EyeIcon show={showCurrentPassword} />
                 </button>
@@ -193,6 +193,9 @@ export default function SecuritySettingsPage() {
                   onChange={(e) => setNewPassword(e.target.value)}
                   placeholder="Enter new password (min. 8 characters)"
                   autoComplete="new-password"
+                  data-lpignore="true"
+                  data-1p-ignore="true"
+                  spellCheck={false}
                   required
                   className="h-11 w-full rounded-xl border border-stone-200 bg-white px-4 pr-11 text-sm text-stone-900 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
                 />
@@ -205,7 +208,7 @@ export default function SecuritySettingsPage() {
                       ? "Hide new password"
                       : "Show new password"
                   }
-                  className="absolute right-2.5 top-1/2 z-10 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-lg bg-white/90 text-stone-400 backdrop-blur-xs transition hover:bg-orange-50 hover:text-orange-600 focus:outline-none"
+                  className="absolute right-2.5 top-1/2 z-10 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-lg bg-white/90 text-stone-400 backdrop-blur-sm transition hover:bg-orange-50 hover:text-orange-600 focus:outline-none"
                 >
                   <EyeIcon show={showNewPassword} />
                 </button>
@@ -248,7 +251,7 @@ export default function SecuritySettingsPage() {
                       ? "Hide confirmation password"
                       : "Show confirmation password"
                   }
-                  className="absolute right-2.5 top-1/2 z-10 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-lg bg-white/90 text-stone-400 backdrop-blur-xs transition hover:bg-orange-50 hover:text-orange-600 focus:outline-none"
+                  className="absolute right-2.5 top-1/2 z-10 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-lg bg-white/90 text-stone-400 backdrop-blur-sm transition hover:bg-orange-50 hover:text-orange-600 focus:outline-none"
                 >
                   <EyeIcon show={showConfirmPassword} />
                 </button>
