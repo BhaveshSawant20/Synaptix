@@ -14,7 +14,7 @@ function EyeIcon({ hidden }: { hidden: boolean }) {
         fill="none"
         stroke="currentColor"
         strokeWidth="2"
-        className="h-4 w-4"
+        className="h-5 w-5"
       >
         <path
           strokeLinecap="round"
@@ -32,7 +32,7 @@ function EyeIcon({ hidden }: { hidden: boolean }) {
       fill="none"
       stroke="currentColor"
       strokeWidth="2"
-      className="h-4 w-4"
+      className="h-5 w-5"
     >
       <path
         strokeLinecap="round"

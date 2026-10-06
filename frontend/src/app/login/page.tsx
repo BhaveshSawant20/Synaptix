@@ -81,6 +81,15 @@ export default function LoginPage() {
                   </p>
                 </div>
               </Link>
+
+              {/* Brand Banner Card */}
+              <div className="mt-6 overflow-hidden rounded-2xl border border-white/10 bg-stone-950/60 shadow-xl shadow-black/40 transition-all duration-300 hover:border-orange-500/30">
+                <img
+                  src="/synaptix-banner-dark.jpg"
+                  alt="Synaptix Coaching Intelligence Banner"
+                  className="h-auto w-full object-cover transition-transform duration-500 hover:scale-[1.02]"
+                />
+              </div>
             </div>
 
             <div className="max-w-md">

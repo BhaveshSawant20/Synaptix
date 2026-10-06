@@ -45,6 +45,12 @@ a {
   color: #431407;
 }
 
+/* Hide native Edge / IE password reveal icon so custom eye icon is always shown cleanly */
+input::-ms-reveal,
+input::-ms-clear {
+  display: none !important;
+}
+
 .glass {
   background: rgba(255, 255, 255, 0.68);
   border: 1px solid var(--border);
