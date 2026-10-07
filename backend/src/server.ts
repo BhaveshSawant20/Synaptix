@@ -42,9 +42,9 @@ app.use(express.json());
 ========================= */
 
 app.get("/api/health", (_req, res) => {
-  res.json({
-    success: true,
-    message: "Synaptix backend is running",
+  res.status(200).json({
+    status: "ok",
+    service: "Synaptix API",
   });
 });
 
