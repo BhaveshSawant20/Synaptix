@@ -829,7 +829,7 @@ export default function FileAssetsPage() {
 
       {/* Upload Modal */}
       {uploadModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-950/45 p-4 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-950/45 p-4 lg:pl-72 backdrop-blur-sm">
           <div className="w-full max-w-xl max-h-[92vh] overflow-y-auto rounded-3xl border border-stone-200/80 bg-white/95 p-6 shadow-2xl backdrop-blur-xl sm:p-7">
             <div className="flex items-start justify-between gap-5">
               <div>
@@ -1080,7 +1080,7 @@ export default function FileAssetsPage() {
 
       {/* Delete Confirmation Modal */}
       {deleteFile && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-stone-950/45 p-4 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-stone-950/45 p-4 lg:pl-72 backdrop-blur-sm">
           <div className="w-full max-w-md rounded-3xl border border-stone-200/80 bg-white/95 p-6 shadow-2xl backdrop-blur-xl sm:p-7">
             <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-red-50 text-2xl text-red-600">
               🗑️

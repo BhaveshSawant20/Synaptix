@@ -989,7 +989,7 @@ export default function AttendancePage() {
 
       {/* Edit / Add Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-950/40 p-4 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-950/40 p-4 backdrop-blur-sm lg:pl-72">
           <div className="max-h-[92vh] w-full max-w-xl overflow-y-auto rounded-3xl border border-stone-200/80 bg-white/95 p-6 shadow-2xl backdrop-blur-xl sm:p-7">
             <div className="flex items-start justify-between gap-4 border-b border-stone-200/70 pb-4">
               <div>
@@ -1134,7 +1134,7 @@ export default function AttendancePage() {
 
       {/* In-App Delete Confirmation Modal */}
       {deleteRecord && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-stone-950/45 p-4 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-stone-950/45 p-4 backdrop-blur-sm lg:pl-72">
           <div className="w-full max-w-md rounded-3xl border border-stone-200/80 bg-white/95 p-6 shadow-2xl backdrop-blur-xl sm:p-7">
             <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-red-100 text-xl font-bold text-red-600">
               !

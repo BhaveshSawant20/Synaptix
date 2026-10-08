@@ -97,8 +97,6 @@ export default function WeeklyTimetable({
   emptyMessage,
   readOnly = false,
 }: WeeklyTimetableProps) {
-  // Determine if Saturday or Sunday is used.
-  // Rule: Support Monday-Friday OR Monday-Saturday depending on which days are actually used. Do NOT force Saturday.
   const hasSaturday = useMemo(() => {
     return schedules.some((s) => s.dayOfWeek === 6);
   }, [schedules]);
@@ -107,16 +105,15 @@ export default function WeeklyTimetable({
     return schedules.some((s) => s.dayOfWeek === 0);
   }, [schedules]);
 
-  // Active days to display
+  // Active days to display: Monday–Saturday standard, Sunday only if scheduled
   const activeDays = useMemo(() => {
     const days = DAY_DEFINITIONS.filter((d) => {
-      if (d.dayOfWeek >= 1 && d.dayOfWeek <= 5) return true; // Mon-Fri always
-      if (d.dayOfWeek === 6) return hasSaturday; // Only if Saturday is scheduled
-      if (d.dayOfWeek === 0) return hasSunday; // Only if Sunday is scheduled
+      if (d.dayOfWeek >= 1 && d.dayOfWeek <= 6) return true; // Mon-Sat always
+      if (d.dayOfWeek === 0) return hasSunday; // Sunday only if scheduled
       return false;
     });
     return days;
-  }, [hasSaturday, hasSunday]);
+  }, [hasSunday]);
 
   // Selected day for mobile tab view
   const [mobileActiveDay, setMobileActiveDay] = useState<number>(1);
@@ -223,97 +220,121 @@ export default function WeeklyTimetable({
 
       {/* Mobile Day Content (Single Day Card View) */}
       <div className="block sm:hidden">
-        {(() => {
-          const dayDef = DAY_DEFINITIONS.find((d) => d.dayOfWeek === mobileActiveDay);
-          const dayClasses = schedulesByDay.get(mobileActiveDay) || [];
+        {totalClasses === 0 ? (
+          <div className="rounded-2xl border border-stone-200 bg-white p-8 text-center shadow-sm">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-orange-50 text-xl text-orange-500">
+              🗓
+            </div>
+            <p className="mt-3 text-sm font-semibold text-stone-800">
+              {emptyMessage || "No classes scheduled yet"}
+            </p>
+            <p className="mx-auto mt-1 max-w-xs text-xs text-stone-400">
+              Create your first timetable entry to start building the weekly schedule.
+            </p>
+            {!readOnly && onAddSchedule && (
+              <button
+                type="button"
+                onClick={onAddSchedule}
+                className="mt-4 inline-flex items-center gap-1.5 rounded-xl bg-orange-500 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-orange-600 active:scale-95"
+              >
+                <span>+</span>
+                <span>Add Class</span>
+              </button>
+            )}
+          </div>
+        ) : (
+          (() => {
+            const dayDef = DAY_DEFINITIONS.find((d) => d.dayOfWeek === mobileActiveDay);
+            const dayClasses = schedulesByDay.get(mobileActiveDay) || [];
 
-          return (
-            <div className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
-              <div className="mb-3 flex items-center justify-between border-b border-stone-100 pb-2">
-                <h4 className="text-sm font-bold text-stone-900">
-                  {dayDef?.full}
-                </h4>
-                <span className="text-xs text-stone-400">
-                  {dayClasses.length} {dayClasses.length === 1 ? "class" : "classes"}
-                </span>
-              </div>
-
-              {dayClasses.length === 0 ? (
-                <div className="py-8 text-center text-xs text-stone-400">
-                  No classes scheduled for {dayDef?.full}
+            return (
+              <div className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
+                <div className="mb-3 flex items-center justify-between border-b border-stone-100 pb-2">
+                  <h4 className="text-sm font-bold text-stone-900">
+                    {dayDef?.full}
+                  </h4>
+                  <span className="text-xs text-stone-400">
+                    {dayClasses.length} {dayClasses.length === 1 ? "class" : "classes"}
+                  </span>
                 </div>
-              ) : (
-                <div className="space-y-2.5">
-                  {dayClasses.map((item) => {
-                    const color = getSubjectColor(item.subject?.name);
-                    return (
-                      <div
-                        key={item.id}
-                        className={`rounded-xl border ${color.border} ${color.bg} p-3 transition`}
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <div>
-                            <span
-                              className={`inline-block rounded-md px-2 py-0.5 text-[11px] font-bold ${color.badge}`}
-                            >
-                              {item.subject?.name || "Subject not set"}
-                            </span>
-                            <p className="mt-1 text-xs font-semibold text-stone-800">
-                              {formatTimeRange(item.startTime, item.endTime)}
-                            </p>
+
+                {dayClasses.length === 0 ? (
+                  <div className="py-8 text-center text-xs text-stone-400">
+                    No classes scheduled for {dayDef?.full}
+                  </div>
+                ) : (
+                  <div className="space-y-2.5">
+                    {dayClasses.map((item) => {
+                      const color = getSubjectColor(item.subject?.name);
+                      return (
+                        <div
+                          key={item.id}
+                          className={`rounded-xl border ${color.border} ${color.bg} p-3 transition`}
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div>
+                              <span
+                                className={`inline-block rounded-md px-2 py-0.5 text-[11px] font-bold ${color.badge}`}
+                              >
+                                {item.subject?.name || "Subject not set"}
+                              </span>
+                              <p className="mt-1 text-xs font-semibold text-stone-800">
+                                {formatTimeRange(item.startTime, item.endTime)}
+                              </p>
+                            </div>
+
+                            {!readOnly && (
+                              <div className="flex items-center gap-1">
+                                {onEditSchedule && (
+                                  <button
+                                    type="button"
+                                    onClick={() => onEditSchedule(item)}
+                                    className="rounded-lg border border-stone-200 bg-white px-2 py-1 text-[11px] font-semibold text-stone-700 hover:bg-stone-50"
+                                  >
+                                    Edit
+                                  </button>
+                                )}
+                                {onDeleteSchedule && (
+                                  <button
+                                    type="button"
+                                    onClick={() => onDeleteSchedule(item)}
+                                    className="rounded-lg border border-red-200 bg-red-50 px-2 py-1 text-[11px] font-semibold text-red-600 hover:bg-red-100"
+                                  >
+                                    ✕
+                                  </button>
+                                )}
+                              </div>
+                            )}
                           </div>
 
-                          {!readOnly && (
-                            <div className="flex items-center gap-1">
-                              {onEditSchedule && (
-                                <button
-                                  type="button"
-                                  onClick={() => onEditSchedule(item)}
-                                  className="rounded-lg border border-stone-200 bg-white px-2 py-1 text-[11px] font-semibold text-stone-700 hover:bg-stone-50"
-                                >
-                                  Edit
-                                </button>
-                              )}
-                              {onDeleteSchedule && (
-                                <button
-                                  type="button"
-                                  onClick={() => onDeleteSchedule(item)}
-                                  className="rounded-lg border border-red-200 bg-red-50 px-2 py-1 text-[11px] font-semibold text-red-600 hover:bg-red-100"
-                                >
-                                  ✕
-                                </button>
-                              )}
-                            </div>
-                          )}
+                          <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-stone-600">
+                            {showTeacherName && item.teacher && (
+                              <span className="inline-flex items-center gap-1 font-medium">
+                                <span className="text-stone-400">👤</span>
+                                {item.teacher.name}
+                              </span>
+                            )}
+                            {showBatchName && item.batch && (
+                              <span className="inline-flex items-center gap-1 font-medium text-orange-700">
+                                <span className="text-stone-400">◈</span>
+                                {item.batch.name}
+                              </span>
+                            )}
+                            {item.room && (
+                              <span className="rounded bg-white/70 px-1.5 py-0.5 text-[10px] text-stone-500">
+                                Room: {item.room}
+                              </span>
+                            )}
+                          </div>
                         </div>
-
-                        <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-stone-600">
-                          {showTeacherName && item.teacher && (
-                            <span className="inline-flex items-center gap-1 font-medium">
-                              <span className="text-stone-400">👤</span>
-                              {item.teacher.name}
-                            </span>
-                          )}
-                          {showBatchName && item.batch && (
-                            <span className="inline-flex items-center gap-1 font-medium text-orange-700">
-                              <span className="text-stone-400">◈</span>
-                              {item.batch.name}
-                            </span>
-                          )}
-                          {item.room && (
-                            <span className="rounded bg-white/70 px-1.5 py-0.5 text-[10px] text-stone-500">
-                              Room: {item.room}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          );
-        })()}
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })()
+        )}
       </div>
 
       {/* Desktop Weekly Grid */}
@@ -327,16 +348,16 @@ export default function WeeklyTimetable({
               {emptyMessage || "No classes scheduled yet"}
             </p>
             <p className="mx-auto mt-1 max-w-sm text-xs text-stone-400">
-              Timetable classes will be organized into weekly columns here. Conflicts with other cohorts or faculty are prevented automatically.
+              Create your first timetable entry to start building the weekly schedule.
             </p>
             {!readOnly && onAddSchedule && (
               <button
                 type="button"
                 onClick={onAddSchedule}
-                className="mt-4 inline-flex items-center gap-1.5 rounded-xl bg-orange-500 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-orange-600"
+                className="mt-4 inline-flex items-center gap-1.5 rounded-xl bg-orange-500 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-orange-600 active:scale-95"
               >
                 <span>+</span>
-                <span>Add Class Schedule</span>
+                <span>Add Class</span>
               </button>
             )}
           </div>

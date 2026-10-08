@@ -222,9 +222,11 @@ router.post(
         });
 
         if (!teacherAssignment) {
-          return res.status(400).json({
-            success: false,
-            message: "This teacher is not assigned to the selected batch",
+          await prisma.batchTeacher.create({
+            data: {
+              batchId,
+              teacherId,
+            },
           });
         }
       }
@@ -1016,9 +1018,11 @@ router.put(
         });
 
         if (!teacherAssignment) {
-          return res.status(400).json({
-            success: false,
-            message: "This teacher is not assigned to the selected batch",
+          await prisma.batchTeacher.create({
+            data: {
+              batchId: finalBatchId,
+              teacherId: finalTeacherId,
+            },
           });
         }
       }

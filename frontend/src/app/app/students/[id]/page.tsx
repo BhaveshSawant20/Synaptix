@@ -1611,7 +1611,7 @@ export default function StudentDetailsPage() {
       {/* Edit Modal */}
       {isEditOpen && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-stone-950/45 p-4 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-stone-950/45 p-4 backdrop-blur-sm lg:pl-72"
           onMouseDown={(e) => {
             if (e.target === e.currentTarget && !saving) {
               setIsEditOpen(false);

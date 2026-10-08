@@ -583,7 +583,7 @@ export default function SchoolDetailsPage() {
 
       {/* Edit School Modal */}
       {showEditModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-950/40 px-5 py-8 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-950/40 px-5 py-8 backdrop-blur-sm lg:pl-72">
           <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-3xl border border-white/60 bg-white p-6 shadow-2xl transition-all duration-200 sm:p-8">
             <div className="flex items-start justify-between gap-5">
               <div>

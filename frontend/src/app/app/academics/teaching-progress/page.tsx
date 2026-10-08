@@ -808,7 +808,7 @@ export default function TeachingProgressPage() {
 
       {/* Edit / Create Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-950/40 p-4 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-950/40 p-4 lg:pl-72 backdrop-blur-sm">
           <div className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-3xl border border-stone-200/80 bg-white/95 shadow-2xl backdrop-blur-xl">
             <div className="flex items-start justify-between border-b border-stone-200/70 px-6 py-5 sm:px-7">
               <div>
@@ -1028,7 +1028,7 @@ export default function TeachingProgressPage() {
 
       {/* In-App Delete Confirmation Modal */}
       {deleteItem && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-stone-950/45 p-4 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-stone-950/45 p-4 lg:pl-72 backdrop-blur-sm">
           <div className="w-full max-w-md rounded-3xl border border-stone-200/80 bg-white/95 p-6 shadow-2xl backdrop-blur-xl sm:p-7">
             <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-red-100 text-xl font-bold text-red-600">
               !

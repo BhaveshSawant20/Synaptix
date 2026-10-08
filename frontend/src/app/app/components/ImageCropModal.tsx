@@ -354,7 +354,7 @@ export default function ImageCropModal({
   }
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-stone-950/70 p-4 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-stone-950/70 p-4 lg:pl-72 backdrop-blur-sm">
       <div className="flex max-h-[94vh] w-full max-w-4xl flex-col overflow-hidden rounded-3xl border border-white/10 bg-white shadow-2xl">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-stone-200 bg-white px-5 py-4 sm:px-6">

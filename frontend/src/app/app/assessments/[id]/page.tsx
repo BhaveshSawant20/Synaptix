@@ -905,7 +905,7 @@ export default function AssessmentDetailsPage() {
 
       {/* Edit Modal */}
       {showEditModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-950/40 p-4 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-950/40 p-4 backdrop-blur-sm lg:pl-72">
           <div className="w-full max-w-lg rounded-3xl border border-stone-200/80 bg-white/95 p-6 shadow-2xl backdrop-blur-xl sm:p-7">
             <div className="flex items-start justify-between gap-4 border-b border-stone-200/70 pb-4">
               <div>

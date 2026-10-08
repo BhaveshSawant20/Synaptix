@@ -659,7 +659,7 @@ export default function SubjectDetailsPage() {
 
       {/* Edit Subject Modal */}
       {isEditModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/40 px-5 py-8 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/40 px-5 py-8 lg:pl-72 backdrop-blur-sm">
           <div className="w-full max-w-lg rounded-3xl border border-orange-100 bg-white p-6 shadow-2xl sm:p-8">
             <div className="mb-6 flex items-start justify-between gap-4">
               <div>

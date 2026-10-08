@@ -589,7 +589,7 @@ export default function SchoolsPage() {
 
       {/* Delete Confirmation Modal */}
       {showDeleteModal && deletingSchool && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-stone-950/45 px-5 py-8 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-stone-950/45 px-5 py-8 backdrop-blur-sm lg:pl-72">
           <div className="w-full max-w-md rounded-3xl border border-white/50 bg-white p-6 shadow-2xl transition-all duration-200 sm:p-8">
             <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-red-50 text-red-600">
               <svg

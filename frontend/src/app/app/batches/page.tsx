@@ -125,6 +125,28 @@ export default function BatchesPage() {
   const [allSchedules, setAllSchedules] = useState<TimetableSchedule[]>([]);
   const [schedulesLoading, setSchedulesLoading] = useState(false);
 
+  // Dedicated Weekly Timetable Schedule Management
+  const [allSubjects, setAllSubjects] = useState<
+    Array<{ id: string; name: string; code?: string | null }>
+  >([]);
+  const [showScheduleModal, setShowScheduleModal] = useState(false);
+  const [editingSchedule, setEditingSchedule] =
+    useState<TimetableSchedule | null>(null);
+  const [scheduleSaving, setScheduleSaving] = useState(false);
+  const [scheduleError, setScheduleError] = useState("");
+  const [scheduleForm, setScheduleForm] = useState({
+    batchId: "",
+    dayOfWeek: 1,
+    subjectId: "",
+    teacherId: "",
+    startTime: "16:00",
+    endTime: "17:00",
+    room: "",
+  });
+  const [deletingSchedule, setDeletingSchedule] =
+    useState<TimetableSchedule | null>(null);
+  const [isDeletingSchedule, setIsDeletingSchedule] = useState(false);
+
   // Dedicated Delete Confirmation Modal state
   const [deletingBatch, setDeletingBatch] = useState<Batch | null>(null);
   const [isDeletingBatch, setIsDeletingBatch] = useState(false);
@@ -222,34 +244,49 @@ export default function BatchesPage() {
   }
 
   // =========================
-  // LOAD SCHEDULES & TEACHERS FOR TIMETABLE
+  // LOAD SCHEDULES & TEACHERS & SUBJECTS FOR TIMETABLE
   // =========================
 
   async function loadAllSchedules() {
     try {
       setSchedulesLoading(true);
-      const [schedulesRes, teachersRes] = await Promise.all([
+      const [schedulesRes, teachersRes, subjectsRes] = await Promise.all([
         fetch(`${API_BASE}/batch-schedules`, {
           headers: { Authorization: `Bearer ${token}` },
         }),
         fetch(`${API_BASE}/teachers`, {
           headers: { Authorization: `Bearer ${token}` },
         }),
+        fetch(`${API_BASE}/subjects`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
       ]);
 
-      if (schedulesRes.status === 401 || teachersRes.status === 401) {
+      if (
+        schedulesRes.status === 401 ||
+        teachersRes.status === 401 ||
+        subjectsRes.status === 401
+      ) {
         window.location.href = "/login";
         return;
       }
 
       const schedulesData = await schedulesRes.json();
       const teachersData = await teachersRes.json();
+      const subjectsData = await subjectsRes.json();
 
       if (schedulesData.success) {
-        setAllSchedules(Array.isArray(schedulesData.schedules) ? schedulesData.schedules : []);
+        setAllSchedules(
+          Array.isArray(schedulesData.schedules) ? schedulesData.schedules : []
+        );
       }
       if (teachersData.success) {
-        setAllTeachers(Array.isArray(teachersData.teachers) ? teachersData.teachers : []);
+        setAllTeachers(
+          Array.isArray(teachersData.teachers) ? teachersData.teachers : []
+        );
+      }
+      if (subjectsData.success && Array.isArray(subjectsData.subjects)) {
+        setAllSubjects(subjectsData.subjects);
       }
     } catch (err) {
       console.error("Failed to load schedules:", err);
@@ -929,6 +966,153 @@ export default function BatchesPage() {
     return `${start} → ${end}`;
   }
 
+  function openAddScheduleModal(defaultBatchId?: string) {
+    setEditingSchedule(null);
+    setScheduleError("");
+    setScheduleForm({
+      batchId: defaultBatchId || timetableBatchId || (batches[0]?.id ?? ""),
+      dayOfWeek: 1,
+      subjectId: "",
+      teacherId: timetableTeacherId || "",
+      startTime: "16:00",
+      endTime: "17:00",
+      room: "",
+    });
+    setShowScheduleModal(true);
+  }
+
+  function openEditScheduleModal(schedule: TimetableSchedule) {
+    setEditingSchedule(schedule);
+    setScheduleError("");
+    setScheduleForm({
+      batchId: schedule.batchId,
+      dayOfWeek: schedule.dayOfWeek,
+      subjectId: schedule.subjectId || "",
+      teacherId: schedule.teacherId || "",
+      startTime: schedule.startTime,
+      endTime: schedule.endTime,
+      room: schedule.room || "",
+    });
+    setShowScheduleModal(true);
+  }
+
+  async function handleSaveSchedule(e: React.FormEvent) {
+    e.preventDefault();
+    const currentToken = localStorage.getItem("synaptix_token");
+    if (!currentToken) {
+      window.location.href = "/login";
+      return;
+    }
+
+    if (!scheduleForm.batchId) {
+      setScheduleError("Please select a batch.");
+      return;
+    }
+    if (!scheduleForm.startTime || !scheduleForm.endTime) {
+      setScheduleError("Start time and end time are required.");
+      return;
+    }
+    if (scheduleForm.endTime <= scheduleForm.startTime) {
+      setScheduleError("End time must be later than start time.");
+      return;
+    }
+
+    try {
+      setScheduleSaving(true);
+      setScheduleError("");
+
+      const payload = {
+        batchId: scheduleForm.batchId,
+        teacherId: scheduleForm.teacherId || null,
+        dayOfWeek: Number(scheduleForm.dayOfWeek),
+        startTime: scheduleForm.startTime,
+        endTime: scheduleForm.endTime,
+        subjectId: scheduleForm.subjectId || null,
+        room: scheduleForm.room.trim() || null,
+      };
+
+      const endpoint = editingSchedule
+        ? `${API_BASE}/batch-schedules/${editingSchedule.id}`
+        : `${API_BASE}/batch-schedules`;
+
+      const response = await fetch(endpoint, {
+        method: editingSchedule ? "PUT" : "POST",
+        headers: {
+          Authorization: `Bearer ${currentToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (response.status === 401) {
+        localStorage.removeItem("synaptix_token");
+        window.location.href = "/login";
+        return;
+      }
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        if (response.status === 409 && showConflictModal(data)) {
+          setShowScheduleModal(false);
+          return;
+        }
+        throw new Error(data.message || "Failed to save schedule.");
+      }
+
+      setShowScheduleModal(false);
+      await loadAllSchedules();
+    } catch (err) {
+      console.error("Failed to save schedule:", err);
+      setScheduleError(
+        err instanceof Error ? err.message : "Failed to save schedule."
+      );
+    } finally {
+      setScheduleSaving(false);
+    }
+  }
+
+  async function handleDeleteSchedule() {
+    if (!deletingSchedule) return;
+    const currentToken = localStorage.getItem("synaptix_token");
+    if (!currentToken) {
+      window.location.href = "/login";
+      return;
+    }
+
+    try {
+      setIsDeletingSchedule(true);
+      const response = await fetch(
+        `${API_BASE}/batch-schedules/${deletingSchedule.id}`,
+        {
+          method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${currentToken}`,
+          },
+        }
+      );
+
+      if (response.status === 401) {
+        localStorage.removeItem("synaptix_token");
+        window.location.href = "/login";
+        return;
+      }
+
+      const data = await response.json();
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || "Failed to delete schedule.");
+      }
+
+      setDeletingSchedule(null);
+      await loadAllSchedules();
+    } catch (err) {
+      console.error("Failed to delete schedule:", err);
+      alert(err instanceof Error ? err.message : "Failed to delete schedule.");
+    } finally {
+      setIsDeletingSchedule(false);
+    }
+  }
+
   return (
     <main className="w-full px-5 py-8 sm:px-8 lg:px-10">
       <div className="mx-auto max-w-7xl">
@@ -980,14 +1164,30 @@ export default function BatchesPage() {
               </button>
             </div>
 
-            <button
-              type="button"
-              onClick={openAddModal}
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-orange-500 px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-orange-200 transition duration-200 hover:-translate-y-0.5 hover:bg-orange-600 active:translate-y-0 active:scale-[0.98]"
-            >
-              <span className="text-base leading-none">+</span>
-              <span>Add Batch</span>
-            </button>
+            <div className="flex items-center gap-2">
+              {activeTab === "timetable" && (
+                <button
+                  type="button"
+                  onClick={() => openAddScheduleModal()}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-orange-500 px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-orange-200 transition duration-200 hover:-translate-y-0.5 hover:bg-orange-600 active:translate-y-0 active:scale-[0.98]"
+                >
+                  <span className="text-base leading-none">+</span>
+                  <span>Add Class</span>
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={openAddModal}
+                className={
+                  activeTab === "timetable"
+                    ? "inline-flex items-center justify-center gap-2 rounded-xl border border-stone-200 bg-white px-4 py-2.5 text-sm font-semibold text-stone-700 shadow-xs transition duration-200 hover:border-orange-300 hover:bg-orange-50/50 hover:text-orange-700 active:translate-y-0"
+                    : "inline-flex items-center justify-center gap-2 rounded-xl bg-orange-500 px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-orange-200 transition duration-200 hover:-translate-y-0.5 hover:bg-orange-600 active:translate-y-0 active:scale-[0.98]"
+                }
+              >
+                <span className="text-base leading-none">+</span>
+                <span>Add Batch</span>
+              </button>
+            </div>
           </div>
         </section>
 
@@ -1289,14 +1489,25 @@ export default function BatchesPage() {
                 </div>
               </div>
 
-              {timetableBatchId && (
-                <Link
-                  href={`/app/batches/${timetableBatchId}`}
-                  className="inline-flex items-center gap-1.5 self-end rounded-xl border border-orange-200 bg-orange-50 px-4 py-2 text-xs font-semibold text-orange-700 transition hover:bg-orange-100"
+              <div className="flex items-center gap-2 self-end sm:self-auto">
+                <button
+                  type="button"
+                  onClick={() => openAddScheduleModal(timetableBatchId || undefined)}
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-orange-500 px-4 py-2 text-xs font-semibold text-white shadow-sm shadow-orange-200 transition hover:bg-orange-600 active:scale-95"
                 >
-                  <span>Go to Batch Details →</span>
-                </Link>
-              )}
+                  <span>+</span>
+                  <span>Add Class</span>
+                </button>
+
+                {timetableBatchId && (
+                  <Link
+                    href={`/app/batches/${timetableBatchId}`}
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-orange-200 bg-orange-50 px-4 py-2 text-xs font-semibold text-orange-700 transition hover:bg-orange-100"
+                  >
+                    <span>Go to Batch Details →</span>
+                  </Link>
+                )}
+              </div>
             </div>
 
             {/* Timetable Grid Component */}
@@ -1312,6 +1523,9 @@ export default function BatchesPage() {
             ) : (
               <WeeklyTimetable
                 schedules={displayedSchedules}
+                onAddSchedule={() => openAddScheduleModal(timetableBatchId || undefined)}
+                onEditSchedule={openEditScheduleModal}
+                onDeleteSchedule={(sched) => setDeletingSchedule(sched)}
                 showBatchName={!timetableBatchId}
                 showTeacherName={!timetableTeacherId}
                 title={
@@ -1321,7 +1535,7 @@ export default function BatchesPage() {
                 }
                 subtitle="Weekly class hours, subjects, instructors, and room allocation."
                 emptyMessage="No classes scheduled for the selected batch or filter."
-                readOnly={true}
+                readOnly={false}
               />
             )}
           </section>
@@ -1844,7 +2058,7 @@ export default function BatchesPage() {
         ====================================================== */}
         {conflictModal && (
           <div
-            className="fixed inset-0 z-[120] flex items-center justify-center bg-stone-950/50 px-4 py-6 backdrop-blur-sm"
+            className="fixed inset-0 z-[120] flex items-center justify-center bg-stone-950/50 px-4 py-6 backdrop-blur-sm lg:pl-72"
             role="dialog"
             aria-modal="true"
           >
@@ -1977,7 +2191,7 @@ export default function BatchesPage() {
         ====================================================== */}
         {deletingBatch && (
           <div
-            className="fixed inset-0 z-[110] flex items-center justify-center bg-stone-950/45 p-4 backdrop-blur-sm"
+            className="fixed inset-0 z-[110] flex items-center justify-center bg-stone-950/45 p-4 backdrop-blur-sm lg:pl-72"
             onMouseDown={(e) => {
               if (e.target === e.currentTarget && !isDeletingBatch) setDeletingBatch(null);
             }}
@@ -2033,7 +2247,7 @@ export default function BatchesPage() {
         ====================================================== */}
         {removingStudent && (
           <div
-            className="fixed inset-0 z-[120] flex items-center justify-center bg-stone-950/45 p-4 backdrop-blur-sm"
+            className="fixed inset-0 z-[120] flex items-center justify-center bg-stone-950/45 p-4 backdrop-blur-sm lg:pl-72"
             onMouseDown={(e) => {
               if (e.target === e.currentTarget && !studentActionLoading) setRemovingStudent(null);
             }}
@@ -2089,7 +2303,7 @@ export default function BatchesPage() {
         ====================================================== */}
         {removingTeacher && (
           <div
-            className="fixed inset-0 z-[120] flex items-center justify-center bg-stone-950/45 p-4 backdrop-blur-sm"
+            className="fixed inset-0 z-[120] flex items-center justify-center bg-stone-950/45 p-4 backdrop-blur-sm lg:pl-72"
             onMouseDown={(e) => {
               if (e.target === e.currentTarget && !teacherActionLoading) setRemovingTeacher(null);
             }}
@@ -2134,6 +2348,269 @@ export default function BatchesPage() {
                   className="rounded-xl bg-red-600 px-5 py-2.5 text-xs font-semibold text-white shadow-md shadow-red-200 transition duration-150 hover:bg-red-700 disabled:opacity-60"
                 >
                   {teacherActionLoading ? "Unassigning..." : "Unassign Teacher"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ======================================================
+            ADD / EDIT TIMETABLE CLASS MODAL
+        ====================================================== */}
+        <Modal
+          isOpen={showScheduleModal}
+          onClose={() => {
+            if (!scheduleSaving) setShowScheduleModal(false);
+          }}
+          title={editingSchedule ? "Edit Timetable Class" : "Add Timetable Class"}
+          badge="Weekly Timetable"
+          description={
+            editingSchedule
+              ? "Update class timing, subject, assigned instructor, or room."
+              : "Schedule a recurring weekly class session for this cohort."
+          }
+          maxWidth="xl"
+          footer={
+            <>
+              <button
+                type="button"
+                onClick={() => setShowScheduleModal(false)}
+                disabled={scheduleSaving}
+                className="rounded-xl border border-stone-200 bg-white px-5 py-2.5 text-sm font-semibold text-stone-600 transition hover:border-stone-300 hover:bg-stone-50 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                form="timetable-class-form"
+                disabled={scheduleSaving || batches.length === 0}
+                className="rounded-xl bg-orange-500 px-6 py-2.5 text-sm font-semibold text-white shadow-md shadow-orange-200 transition duration-150 hover:-translate-y-0.5 hover:bg-orange-600 active:translate-y-0 disabled:opacity-60"
+              >
+                {scheduleSaving
+                  ? "Saving..."
+                  : editingSchedule
+                    ? "Save Changes"
+                    : "Add Class"}
+              </button>
+            </>
+          }
+        >
+          <form
+            id="timetable-class-form"
+            onSubmit={handleSaveSchedule}
+            className="space-y-4"
+          >
+            {scheduleError && (
+              <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-xs font-semibold text-red-700">
+                {scheduleError}
+              </div>
+            )}
+
+            {/* Batch Selector */}
+            <div>
+              <label className="text-xs font-semibold text-stone-700">
+                Batch / Cohort *
+              </label>
+              <select
+                value={scheduleForm.batchId}
+                onChange={(e) =>
+                  setScheduleForm({ ...scheduleForm, batchId: e.target.value })
+                }
+                required
+                className="mt-1.5 h-11 w-full rounded-xl border border-stone-200 bg-white px-3.5 text-sm font-medium text-stone-900 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
+              >
+                <option value="">Select a batch</option>
+                {batches.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Day of Week */}
+            <div>
+              <label className="text-xs font-semibold text-stone-700">
+                Day of Week *
+              </label>
+              <select
+                value={scheduleForm.dayOfWeek}
+                onChange={(e) =>
+                  setScheduleForm({
+                    ...scheduleForm,
+                    dayOfWeek: Number(e.target.value),
+                  })
+                }
+                required
+                className="mt-1.5 h-11 w-full rounded-xl border border-stone-200 bg-white px-3.5 text-sm font-medium text-stone-900 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
+              >
+                <option value={1}>Monday</option>
+                <option value={2}>Tuesday</option>
+                <option value={3}>Wednesday</option>
+                <option value={4}>Thursday</option>
+                <option value={5}>Friday</option>
+                <option value={6}>Saturday</option>
+              </select>
+            </div>
+
+            {/* Subject & Teacher Grid */}
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div>
+                <label className="text-xs font-semibold text-stone-700">
+                  Subject
+                </label>
+                <select
+                  value={scheduleForm.subjectId}
+                  onChange={(e) =>
+                    setScheduleForm({
+                      ...scheduleForm,
+                      subjectId: e.target.value,
+                    })
+                  }
+                  className="mt-1.5 h-11 w-full rounded-xl border border-stone-200 bg-white px-3.5 text-sm font-medium text-stone-900 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
+                >
+                  <option value="">Select subject (optional)</option>
+                  {allSubjects.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name} {s.code ? `(${s.code})` : ""}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-stone-700">
+                  Faculty / Teacher
+                </label>
+                <select
+                  value={scheduleForm.teacherId}
+                  onChange={(e) =>
+                    setScheduleForm({
+                      ...scheduleForm,
+                      teacherId: e.target.value,
+                    })
+                  }
+                  className="mt-1.5 h-11 w-full rounded-xl border border-stone-200 bg-white px-3.5 text-sm font-medium text-stone-900 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
+                >
+                  <option value="">Select teacher (optional)</option>
+                  {allTeachers.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name} {t.specialization ? `(${t.specialization})` : ""}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Time Range */}
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div>
+                <label className="text-xs font-semibold text-stone-700">
+                  Start Time *
+                </label>
+                <input
+                  type="time"
+                  value={scheduleForm.startTime}
+                  onChange={(e) =>
+                    setScheduleForm({
+                      ...scheduleForm,
+                      startTime: e.target.value,
+                    })
+                  }
+                  required
+                  className="mt-1.5 h-11 w-full rounded-xl border border-stone-200 bg-white px-3.5 text-sm font-medium text-stone-900 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-stone-700">
+                  End Time *
+                </label>
+                <input
+                  type="time"
+                  value={scheduleForm.endTime}
+                  onChange={(e) =>
+                    setScheduleForm({
+                      ...scheduleForm,
+                      endTime: e.target.value,
+                    })
+                  }
+                  required
+                  className="mt-1.5 h-11 w-full rounded-xl border border-stone-200 bg-white px-3.5 text-sm font-medium text-stone-900 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
+                />
+              </div>
+            </div>
+
+            {/* Room */}
+            <div>
+              <label className="text-xs font-semibold text-stone-700">
+                Classroom / Room (Optional)
+              </label>
+              <input
+                type="text"
+                value={scheduleForm.room}
+                onChange={(e) =>
+                  setScheduleForm({ ...scheduleForm, room: e.target.value })
+                }
+                placeholder="e.g. Room 101, Lab B, Main Hall"
+                className="mt-1.5 h-11 w-full rounded-xl border border-stone-200 bg-white px-3.5 text-sm font-medium text-stone-900 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100 placeholder:text-stone-400"
+              />
+            </div>
+          </form>
+        </Modal>
+
+        {/* ======================================================
+            DELETE TIMETABLE CLASS CONFIRMATION MODAL
+        ====================================================== */}
+        {deletingSchedule && (
+          <div
+            className="fixed inset-0 z-[110] flex items-center justify-center bg-stone-950/45 p-4 backdrop-blur-sm lg:pl-72"
+            onMouseDown={(e) => {
+              if (e.target === e.currentTarget && !isDeletingSchedule) {
+                setDeletingSchedule(null);
+              }
+            }}
+          >
+            <div className="w-full max-w-md overflow-hidden rounded-3xl border border-red-100 bg-white p-6 shadow-2xl">
+              <div className="flex items-center gap-4">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-red-50 text-xl font-bold text-red-600">
+                  ⚠
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold tracking-tight text-stone-900">
+                    Delete Timetable Class
+                  </h3>
+                  <p className="mt-0.5 text-xs text-stone-500">
+                    Permanent schedule removal
+                  </p>
+                </div>
+              </div>
+
+              <p className="mt-4 text-sm leading-6 text-stone-600">
+                Are you sure you want to remove this class schedule (
+                <strong className="font-semibold text-stone-900">
+                  {deletingSchedule.subject?.name || "Class"}
+                </strong>
+                , {deletingSchedule.startTime} – {deletingSchedule.endTime})?
+              </p>
+
+              <div className="mt-6 flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setDeletingSchedule(null)}
+                  disabled={isDeletingSchedule}
+                  className="rounded-xl border border-stone-200 bg-white px-5 py-2.5 text-xs font-semibold text-stone-600 transition hover:border-stone-300 hover:bg-stone-50 disabled:opacity-60"
+                >
+                  Cancel
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleDeleteSchedule}
+                  disabled={isDeletingSchedule}
+                  className="rounded-xl bg-red-600 px-5 py-2.5 text-xs font-semibold text-white shadow-md shadow-red-200 transition duration-150 hover:bg-red-700 disabled:opacity-60"
+                >
+                  {isDeletingSchedule ? "Deleting..." : "Delete Class"}
                 </button>
               </div>
             </div>
