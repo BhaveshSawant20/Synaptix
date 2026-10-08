@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 
 import { API_BASE } from "@/lib/api";
 
@@ -118,6 +119,7 @@ function MetricCard({
 }
 
 export default function PerformancePage() {
+  const router = useRouter();
   const [records, setRecords] = useState<PerformanceRecord[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
   const [assessments, setAssessments] = useState<Assessment[]>([]);
@@ -142,17 +144,19 @@ export default function PerformancePage() {
 
   const [form, setForm] = useState<FormState>(emptyForm);
 
-  async function loadData() {
+  async function loadData(isInitial = false) {
     const token = getToken();
 
     if (!token) {
-      window.location.href = "/login";
+      router.push("/login");
       return;
     }
 
     try {
-      setLoading(true);
-      setError("");
+      if (!isInitial) {
+        setLoading(true);
+        setError("");
+      }
 
       const [
         performanceResponse,
@@ -178,7 +182,7 @@ export default function PerformancePage() {
         ].some((response) => response.status === 401)
       ) {
         localStorage.removeItem("synaptix_token");
-        window.location.href = "/login";
+        router.push("/login");
         return;
       }
 
@@ -243,7 +247,16 @@ export default function PerformancePage() {
   }
 
   useEffect(() => {
-    loadData();
+    let ignore = false;
+    async function init() {
+      if (!ignore) {
+        await loadData(true);
+      }
+    }
+    init();
+    return () => {
+      ignore = true;
+    };
   }, []);
 
   const filteredRecords = useMemo(() => {
@@ -560,7 +573,7 @@ export default function PerformancePage() {
 
       if (response.status === 401) {
         localStorage.removeItem("synaptix_token");
-        window.location.href = "/login";
+        router.push("/login");
         return;
       }
 
@@ -609,7 +622,7 @@ export default function PerformancePage() {
 
       if (response.status === 401) {
         localStorage.removeItem("synaptix_token");
-        window.location.href = "/login";
+        router.push("/login");
         return;
       }
 

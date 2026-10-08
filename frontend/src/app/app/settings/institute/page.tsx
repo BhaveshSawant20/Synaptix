@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import ImageCropModal from "../../components/ImageCropModal";
 
@@ -96,6 +97,7 @@ function normalizeCropState(
 }
 
 export default function InstituteProfilePage() {
+  const router = useRouter();
   /*
    * FINAL CROPPED FILE
    *
@@ -187,7 +189,7 @@ export default function InstituteProfilePage() {
         const token = localStorage.getItem("synaptix_token");
 
         if (!token) {
-          window.location.href = "/login";
+          router.push("/login");
           return;
         }
 
@@ -205,7 +207,7 @@ export default function InstituteProfilePage() {
 
         if (response.status === 401) {
           localStorage.removeItem("synaptix_token");
-          window.location.href = "/login";
+          router.push("/login");
           return;
         }
 
@@ -501,7 +503,7 @@ export default function InstituteProfilePage() {
       const token = localStorage.getItem("synaptix_token");
 
       if (!token) {
-        window.location.href = "/login";
+        router.push("/login");
         return;
       }
 
@@ -591,7 +593,7 @@ export default function InstituteProfilePage() {
 
       if (response.status === 401) {
         localStorage.removeItem("synaptix_token");
-        window.location.href = "/login";
+        router.push("/login");
         return;
       }
 

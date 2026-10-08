@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import Modal from "@/app/app/components/Modal";
 import SortControl from "@/app/app/components/SortControl";
@@ -106,6 +107,7 @@ function getFormFromStudent(student: Student): StudentForm {
 }
 
 export default function StudentsPage() {
+  const router = useRouter();
   const [students, setStudents] = useState<Student[]>([]);
   const [schools, setSchools] = useState<School[]>([]);
   const [standards, setStandards] = useState<Standard[]>([]);
@@ -129,17 +131,19 @@ export default function StudentsPage() {
 
   const [form, setForm] = useState<StudentForm>(emptyForm);
 
-  async function loadData() {
+  async function loadData(isInitial = false) {
     const token = getToken();
 
     if (!token) {
-      window.location.href = "/login";
+      router.push("/login");
       return;
     }
 
     try {
-      setLoading(true);
-      setError("");
+      if (!isInitial) {
+        setLoading(true);
+        setError("");
+      }
 
       const headers = {
         Authorization: `Bearer ${token}`,
@@ -167,7 +171,7 @@ export default function StudentsPage() {
         standardsResponse.status === 401
       ) {
         localStorage.removeItem("synaptix_token");
-        window.location.href = "/login";
+        router.push("/login");
         return;
       }
 
@@ -203,7 +207,16 @@ export default function StudentsPage() {
   }
 
   useEffect(() => {
-    loadData();
+    let ignore = false;
+    async function init() {
+      if (!ignore) {
+        await loadData(true);
+      }
+    }
+    init();
+    return () => {
+      ignore = true;
+    };
   }, []);
 
   // Filter students by search
@@ -339,7 +352,7 @@ export default function StudentsPage() {
       const token = getToken();
 
       if (!token) {
-        window.location.href = "/login";
+        router.push("/login");
         return;
       }
 
@@ -387,7 +400,7 @@ export default function StudentsPage() {
 
       if (response.status === 401) {
         localStorage.removeItem("synaptix_token");
-        window.location.href = "/login";
+        router.push("/login");
         return;
       }
 
@@ -432,7 +445,7 @@ export default function StudentsPage() {
       const token = getToken();
 
       if (!token) {
-        window.location.href = "/login";
+        router.push("/login");
         return;
       }
 
@@ -450,7 +463,7 @@ export default function StudentsPage() {
 
       if (response.status === 401) {
         localStorage.removeItem("synaptix_token");
-        window.location.href = "/login";
+        router.push("/login");
         return;
       }
 

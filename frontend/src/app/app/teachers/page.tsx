@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import Modal from "@/app/app/components/Modal";
 import SortControl from "@/app/app/components/SortControl";
@@ -54,6 +55,7 @@ function getInitials(name: string) {
 }
 
 export default function TeachersPage() {
+  const router = useRouter();
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -72,9 +74,6 @@ export default function TeachersPage() {
 
   async function loadTeachers() {
     try {
-      setLoading(true);
-      setError("");
-
       const response = await fetch(`${API_BASE}/teachers`, {
         headers: getHeaders(),
       });
@@ -83,7 +82,7 @@ export default function TeachersPage() {
 
       if (response.status === 401) {
         localStorage.removeItem("synaptix_token");
-        window.location.href = "/login";
+        router.push("/login");
         return;
       }
 
@@ -104,12 +103,50 @@ export default function TeachersPage() {
   }
 
   useEffect(() => {
+    let ignore = false;
+
+    async function fetchTeachers() {
+      try {
+        const response = await fetch(`${API_BASE}/teachers`, {
+          headers: getHeaders(),
+        });
+        const data = await response.json();
+        if (response.status === 401) {
+          localStorage.removeItem("synaptix_token");
+          router.push("/login");
+          return;
+        }
+        if (!response.ok || !data.success) {
+          throw new Error(data.message || "Failed to load teachers.");
+        }
+        if (!ignore) {
+          setTeachers(Array.isArray(data.teachers) ? data.teachers : []);
+        }
+      } catch (err) {
+        if (!ignore) {
+          setError(
+            err instanceof Error
+              ? err.message
+              : "Something went wrong while loading teachers."
+          );
+        }
+      } finally {
+        if (!ignore) {
+          setLoading(false);
+        }
+      }
+    }
+
     if (!getToken()) {
-      window.location.href = "/login";
+      router.push("/login");
       return;
     }
 
-    loadTeachers();
+    fetchTeachers();
+
+    return () => {
+      ignore = true;
+    };
   }, []);
 
   // Sort teachers alphabetically A-Z by default, or by createdAt
@@ -204,7 +241,7 @@ export default function TeachersPage() {
 
       if (response.status === 401) {
         localStorage.removeItem("synaptix_token");
-        window.location.href = "/login";
+        router.push("/login");
         return;
       }
 
@@ -257,7 +294,7 @@ export default function TeachersPage() {
 
       if (response.status === 401) {
         localStorage.removeItem("synaptix_token");
-        window.location.href = "/login";
+        router.push("/login");
         return;
       }
 

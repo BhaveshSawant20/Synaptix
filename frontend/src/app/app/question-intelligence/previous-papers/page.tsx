@@ -6,6 +6,7 @@ import {
   useMemo,
   useState,
 } from "react";
+import { useRouter } from "next/navigation";
 
 type QuestionPaper = {
   id: string;
@@ -56,6 +57,7 @@ function formatDate(value: string) {
 }
 
 export default function PreviousPapersPage() {
+  const router = useRouter();
   const [papers, setPapers] = useState<QuestionPaper[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -68,17 +70,19 @@ export default function PreviousPapersPage() {
   const [deletePaper, setDeletePaper] = useState<QuestionPaper | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm);
 
-  async function loadPapers() {
+  async function loadPapers(isInitial = false) {
     const token = getToken();
 
     if (!token) {
-      window.location.href = "/login";
+      router.push("/login");
       return;
     }
 
     try {
-      setLoading(true);
-      setError("");
+      if (!isInitial) {
+        setLoading(true);
+        setError("");
+      }
 
       const response = await fetch(`${API_BASE}/question-papers`, {
         headers: {
@@ -90,7 +94,7 @@ export default function PreviousPapersPage() {
 
       if (response.status === 401) {
         localStorage.removeItem("synaptix_token");
-        window.location.href = "/login";
+        router.push("/login");
         return;
       }
 
@@ -113,7 +117,16 @@ export default function PreviousPapersPage() {
   }
 
   useEffect(() => {
-    loadPapers();
+    let ignore = false;
+    async function init() {
+      if (!ignore) {
+        await loadPapers(true);
+      }
+    }
+    init();
+    return () => {
+      ignore = true;
+    };
   }, []);
 
   const subjects = useMemo(() => {
@@ -207,7 +220,7 @@ export default function PreviousPapersPage() {
     const token = getToken();
 
     if (!token) {
-      window.location.href = "/login";
+      router.push("/login");
       return;
     }
 
@@ -242,7 +255,7 @@ export default function PreviousPapersPage() {
 
       if (response.status === 401) {
         localStorage.removeItem("synaptix_token");
-        window.location.href = "/login";
+        router.push("/login");
         return;
       }
 
@@ -280,7 +293,7 @@ export default function PreviousPapersPage() {
     const token = getToken();
 
     if (!token) {
-      window.location.href = "/login";
+      router.push("/login");
       return;
     }
 
@@ -302,7 +315,7 @@ export default function PreviousPapersPage() {
 
       if (response.status === 401) {
         localStorage.removeItem("synaptix_token");
-        window.location.href = "/login";
+        router.push("/login");
         return;
       }
 

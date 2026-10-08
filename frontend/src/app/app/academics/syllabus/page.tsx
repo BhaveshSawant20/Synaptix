@@ -1,6 +1,8 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import Modal from "@/app/app/components/Modal";
 
 import { API_BASE } from "@/lib/api";
 
@@ -64,6 +66,8 @@ function getToken() {
 }
 
 export default function SyllabusRequirementsPage() {
+  const router = useRouter();
+
   const [requirements, setRequirements] = useState<Requirement[]>([]);
   const [schools, setSchools] = useState<School[]>([]);
   const [standards, setStandards] = useState<Standard[]>([]);
@@ -95,14 +99,14 @@ export default function SyllabusRequirementsPage() {
 
   async function handleUnauthorized() {
     localStorage.removeItem("synaptix_token");
-    window.location.href = "/login";
+    router.push("/login");
   }
 
   async function fetchRequirements() {
     const token = getToken();
 
     if (!token) {
-      window.location.href = "/login";
+      router.push("/login");
       return;
     }
 
@@ -126,81 +130,6 @@ export default function SyllabusRequirementsPage() {
     }
 
     setRequirements(data.requirements || []);
-  }
-
-  async function fetchSchools() {
-    const token = getToken();
-
-    if (!token) return;
-
-    const response = await fetch(`${API_BASE}/schools`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
-
-    if (response.status === 401) {
-      await handleUnauthorized();
-      return;
-    }
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data.message || "Failed to fetch schools");
-    }
-
-    setSchools(data.schools || []);
-  }
-
-  async function fetchStandards() {
-    const token = getToken();
-
-    if (!token) return;
-
-    const response = await fetch(`${API_BASE}/standards`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
-
-    if (response.status === 401) {
-      await handleUnauthorized();
-      return;
-    }
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data.message || "Failed to fetch standards");
-    }
-
-    setStandards(data.standards || []);
-  }
-
-  async function fetchSubjects() {
-    const token = getToken();
-
-    if (!token) return;
-
-    const response = await fetch(`${API_BASE}/subjects`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
-
-    if (response.status === 401) {
-      await handleUnauthorized();
-      return;
-    }
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data.message || "Failed to fetch subjects");
-    }
-
-    setSubjects(data.subjects || []);
   }
 
   async function fetchStandardSubjects(standardId: string) {
@@ -236,8 +165,8 @@ export default function SyllabusRequirementsPage() {
     const mappings = data.subjects || data.standardSubjects || [];
 
     const mappedSubjects: Subject[] = mappings
-      .map((mapping: any) => mapping.subject)
-      .filter(Boolean);
+      .map((mapping: { subject?: Subject }) => mapping.subject)
+      .filter((subj: Subject | undefined): subj is Subject => Boolean(subj));
 
     setFormSubjects(mappedSubjects);
   }
@@ -275,22 +204,54 @@ export default function SyllabusRequirementsPage() {
 
   async function fetchData() {
     try {
-      setLoading(true);
-      setError("");
-
       const token = getToken();
 
       if (!token) {
-        window.location.href = "/login";
+        router.push("/login");
         return;
       }
 
-      await Promise.all([
-        fetchRequirements(),
-        fetchSchools(),
-        fetchStandards(),
-        fetchSubjects(),
+      const [reqRes, schRes, stdRes, subRes] = await Promise.all([
+        fetch(`${API_BASE}/syllabus-requirements`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+        fetch(`${API_BASE}/schools`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+        fetch(`${API_BASE}/standards`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+        fetch(`${API_BASE}/subjects`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
       ]);
+
+      if (
+        reqRes.status === 401 ||
+        schRes.status === 401 ||
+        stdRes.status === 401 ||
+        subRes.status === 401
+      ) {
+        await handleUnauthorized();
+        return;
+      }
+
+      const [reqData, schData, stdData, subData] = await Promise.all([
+        reqRes.json(),
+        schRes.json(),
+        stdRes.json(),
+        subRes.json(),
+      ]);
+
+      if (!reqRes.ok) throw new Error(reqData.message || "Failed to fetch syllabus requirements");
+      if (!schRes.ok) throw new Error(schData.message || "Failed to fetch schools");
+      if (!stdRes.ok) throw new Error(stdData.message || "Failed to fetch standards");
+      if (!subRes.ok) throw new Error(subData.message || "Failed to fetch subjects");
+
+      setRequirements(reqData.requirements || []);
+      setSchools(schData.schools || []);
+      setStandards(stdData.standards || []);
+      setSubjects(subData.subjects || []);
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Something went wrong"
@@ -301,7 +262,19 @@ export default function SyllabusRequirementsPage() {
   }
 
   useEffect(() => {
-    fetchData();
+    let ignore = false;
+
+    async function init() {
+      if (!ignore) {
+        await fetchData();
+      }
+    }
+
+    init();
+
+    return () => {
+      ignore = true;
+    };
   }, []);
 
   const filteredStandards = useMemo(() => {
@@ -534,7 +507,7 @@ export default function SyllabusRequirementsPage() {
       const token = getToken();
 
       if (!token) {
-        window.location.href = "/login";
+        router.push("/login");
         return;
       }
 
@@ -611,7 +584,7 @@ export default function SyllabusRequirementsPage() {
       const token = getToken();
 
       if (!token) {
-        window.location.href = "/login";
+        router.push("/login");
         return;
       }
 
@@ -1041,297 +1014,277 @@ export default function SyllabusRequirementsPage() {
       </div>
 
       {/* EDIT / CREATE MODAL */}
-      {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-950/40 p-4 lg:pl-72 backdrop-blur-sm">
-          <div className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-3xl border border-stone-200/80 bg-white/95 shadow-2xl backdrop-blur-xl">
-            <div className="flex items-start justify-between border-b border-stone-200/70 px-6 py-5 sm:px-7">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-orange-600">
-                  {editingRequirement
-                    ? "Edit Requirement"
-                    : "New Requirement"}
-                </p>
+      <Modal
+        isOpen={isModalOpen}
+        onClose={closeModal}
+        title={editingRequirement ? "Update Syllabus Requirement" : "Create Syllabus Requirement"}
+        subtitle={editingRequirement ? "Edit Requirement" : "New Requirement"}
+        size="2xl"
+        footer={
+          <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end w-full">
+            <button
+              type="button"
+              onClick={closeModal}
+              disabled={saving}
+              className="rounded-xl border border-stone-200 bg-white px-4 py-2.5 text-sm font-semibold text-stone-700 transition duration-200 hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Cancel
+            </button>
 
-                <h2 className="mt-1 text-xl font-bold tracking-tight text-stone-900">
-                  {editingRequirement
-                    ? "Update Syllabus Requirement"
-                    : "Create Syllabus Requirement"}
-                </h2>
-              </div>
+            <button
+              type="submit"
+              form="syllabus-requirement-form"
+              disabled={saving}
+              className="rounded-xl bg-orange-500 px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-orange-200 transition duration-200 hover:-translate-y-0.5 hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {saving
+                ? "Saving..."
+                : editingRequirement
+                ? "Update Requirement"
+                : "Create Requirement"}
+            </button>
+          </div>
+        }
+      >
+        <form id="syllabus-requirement-form" onSubmit={handleSubmit}>
+          {error && (
+            <div className="mb-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+              {error}
+            </div>
+          )}
 
-              <button
-                type="button"
-                onClick={closeModal}
-                className="flex h-9 w-9 items-center justify-center rounded-xl border border-stone-200 bg-white text-lg text-stone-500 transition hover:border-orange-200 hover:text-orange-600"
+          <div className="space-y-4">
+            {/* SCHOOL */}
+            <div>
+              <label className="mb-1.5 block text-xs font-semibold text-stone-700">
+                School <span className="text-orange-500">*</span>
+              </label>
+
+              <select
+                value={form.schoolId}
+                disabled={saving}
+                onChange={(event) =>
+                  handleSchoolChange(event.target.value)
+                }
+                className="h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-900 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100 disabled:cursor-not-allowed disabled:bg-stone-50 disabled:text-stone-500"
               >
-                ×
-              </button>
+                <option value="">Select school</option>
+
+                {schools.map((school) => (
+                  <option key={school.id} value={school.id}>
+                    {school.name}
+                  </option>
+                ))}
+              </select>
             </div>
 
-            <form onSubmit={handleSubmit} className="p-6 sm:p-7">
-              {error && (
-                <div className="mb-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
-                  {error}
-                </div>
-              )}
+            {/* STANDARD */}
+            <div>
+              <label className="mb-1.5 block text-xs font-semibold text-stone-700">
+                Standard <span className="text-orange-500">*</span>
+              </label>
 
-              <div className="space-y-4">
-                {/* SCHOOL */}
-                <div>
-                  <label className="mb-1.5 block text-xs font-semibold text-stone-700">
-                    School <span className="text-orange-500">*</span>
-                  </label>
+              <select
+                value={form.standardId}
+                disabled={saving || !form.schoolId}
+                onChange={(event) =>
+                  handleStandardChange(event.target.value)
+                }
+                className="h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-900 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100 disabled:cursor-not-allowed disabled:bg-stone-50 disabled:text-stone-500"
+              >
+                <option value="">
+                  {!form.schoolId
+                    ? "Select a school first"
+                    : formStandards.length === 0
+                    ? "No standards available"
+                    : "Select standard"}
+                </option>
 
-                  <select
-                    value={form.schoolId}
-                    disabled={saving}
-                    onChange={(event) =>
-                      handleSchoolChange(event.target.value)
-                    }
-                    className="h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-900 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100 disabled:cursor-not-allowed disabled:bg-stone-50 disabled:text-stone-500"
+                {formStandards.map((standard) => (
+                  <option
+                    key={standard.id}
+                    value={standard.id}
                   >
-                    <option value="">Select school</option>
+                    {standard.name}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-                    {schools.map((school) => (
-                      <option key={school.id} value={school.id}>
-                        {school.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+            {/* SUBJECT */}
+            <div>
+              <label className="mb-1.5 block text-xs font-semibold text-stone-700">
+                Subject <span className="text-orange-500">*</span>
+              </label>
 
-                {/* STANDARD */}
-                <div>
-                  <label className="mb-1.5 block text-xs font-semibold text-stone-700">
-                    Standard <span className="text-orange-500">*</span>
-                  </label>
+              <select
+                value={form.subjectId}
+                disabled={saving || !form.standardId}
+                onChange={(event) =>
+                  handleSubjectChange(event.target.value)
+                }
+                className="h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-900 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100 disabled:cursor-not-allowed disabled:bg-stone-50 disabled:text-stone-500"
+              >
+                <option value="">
+                  {!form.standardId
+                    ? "Select a standard first"
+                    : formSubjects.length === 0
+                    ? "No subjects assigned"
+                    : "Select subject"}
+                </option>
 
-                  <select
-                    value={form.standardId}
-                    disabled={saving || !form.schoolId}
-                    onChange={(event) =>
-                      handleStandardChange(event.target.value)
-                    }
-                    className="h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-900 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100 disabled:cursor-not-allowed disabled:bg-stone-50 disabled:text-stone-500"
-                  >
-                    <option value="">
-                      {!form.schoolId
-                        ? "Select a school first"
-                        : formStandards.length === 0
-                        ? "No standards available"
-                        : "Select standard"}
-                    </option>
+                {formSubjects.map((subject) => (
+                  <option key={subject.id} value={subject.id}>
+                    {subject.name}
+                    {subject.code ? ` — ${subject.code}` : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-                    {formStandards.map((standard) => (
-                      <option
-                        key={standard.id}
-                        value={standard.id}
-                      >
-                        {standard.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+            {/* TOPIC */}
+            <div>
+              <label className="mb-1.5 block text-xs font-semibold text-stone-700">
+                Topic <span className="text-orange-500">*</span>
+              </label>
 
-                {/* SUBJECT */}
-                <div>
-                  <label className="mb-1.5 block text-xs font-semibold text-stone-700">
-                    Subject <span className="text-orange-500">*</span>
-                  </label>
+              <select
+                value={form.topicId}
+                disabled={saving || !form.subjectId}
+                onChange={(event) =>
+                  updateForm("topicId", event.target.value)
+                }
+                className="h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-900 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100 disabled:cursor-not-allowed disabled:bg-stone-50 disabled:text-stone-500"
+              >
+                <option value="">
+                  {!form.subjectId
+                    ? "Select a subject first"
+                    : formTopics.length === 0
+                    ? "No topics available"
+                    : "Select topic"}
+                </option>
 
-                  <select
-                    value={form.subjectId}
-                    disabled={saving || !form.standardId}
-                    onChange={(event) =>
-                      handleSubjectChange(event.target.value)
-                    }
-                    className="h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-900 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100 disabled:cursor-not-allowed disabled:bg-stone-50 disabled:text-stone-500"
-                  >
-                    <option value="">
-                      {!form.standardId
-                        ? "Select a standard first"
-                        : formSubjects.length === 0
-                        ? "No subjects assigned"
-                        : "Select subject"}
-                    </option>
+                {formTopics.map((topic) => (
+                  <option key={topic.id} value={topic.id}>
+                    {topic.orderIndex !== null &&
+                    topic.orderIndex !== undefined
+                      ? `${topic.orderIndex}. `
+                      : ""}
+                    {topic.name}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-                    {formSubjects.map((subject) => (
-                      <option key={subject.id} value={subject.id}>
-                        {subject.name}
-                        {subject.code ? ` — ${subject.code}` : ""}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* TOPIC */}
-                <div>
-                  <label className="mb-1.5 block text-xs font-semibold text-stone-700">
-                    Topic <span className="text-orange-500">*</span>
-                  </label>
-
-                  <select
-                    value={form.topicId}
-                    disabled={saving || !form.subjectId}
-                    onChange={(event) =>
-                      updateForm("topicId", event.target.value)
-                    }
-                    className="h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-900 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100 disabled:cursor-not-allowed disabled:bg-stone-50 disabled:text-stone-500"
-                  >
-                    <option value="">
-                      {!form.subjectId
-                        ? "Select a subject first"
-                        : formTopics.length === 0
-                        ? "No topics available"
-                        : "Select topic"}
-                    </option>
-
-                    {formTopics.map((topic) => (
-                      <option key={topic.id} value={topic.id}>
-                        {topic.orderIndex !== null &&
-                        topic.orderIndex !== undefined
-                          ? `${topic.orderIndex}. `
-                          : ""}
-                        {topic.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* REQUIRED */}
-                <div className="rounded-xl border border-stone-200/80 bg-stone-50/50 p-4">
-                  <label className="flex cursor-pointer items-start gap-3">
-                    <input
-                      type="checkbox"
-                      checked={form.required}
-                      disabled={saving}
-                      onChange={(event) =>
-                        updateForm(
-                          "required",
-                          event.target.checked
-                        )
-                      }
-                      className="mt-0.5 h-4 w-4 rounded border-stone-300 text-orange-500 accent-orange-500 focus:ring-orange-300 disabled:cursor-not-allowed"
-                    />
-
-                    <span>
-                      <span className="block text-sm font-semibold text-stone-900">
-                        Required Topic
-                      </span>
-
-                      <span className="mt-0.5 block text-xs leading-relaxed text-stone-500">
-                        Mark this topic as required curriculum for the selected school and standard.
-                      </span>
-                    </span>
-                  </label>
-                </div>
-              </div>
-
-              <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-                <button
-                  type="button"
-                  onClick={closeModal}
+            {/* REQUIRED */}
+            <div className="rounded-xl border border-stone-200/80 bg-stone-50/50 p-4">
+              <label className="flex cursor-pointer items-start gap-3">
+                <input
+                  type="checkbox"
+                  checked={form.required}
                   disabled={saving}
-                  className="rounded-xl border border-stone-200 bg-white px-4 py-2.5 text-sm font-semibold text-stone-700 transition duration-200 hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  Cancel
-                </button>
+                  onChange={(event) =>
+                    updateForm(
+                      "required",
+                      event.target.checked
+                    )
+                  }
+                  className="mt-0.5 h-4 w-4 rounded border-stone-300 text-orange-500 accent-orange-500 focus:ring-orange-300 disabled:cursor-not-allowed"
+                />
 
-                <button
-                  type="submit"
-                  disabled={saving}
-                  className="rounded-xl bg-orange-500 px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-orange-200 transition duration-200 hover:-translate-y-0.5 hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {saving
-                    ? "Saving..."
-                    : editingRequirement
-                    ? "Update Requirement"
-                    : "Create Requirement"}
-                </button>
-              </div>
-            </form>
+                <span>
+                  <span className="block text-sm font-semibold text-stone-900">
+                    Required Topic
+                  </span>
+
+                  <span className="mt-0.5 block text-xs leading-relaxed text-stone-500">
+                    Mark this topic as required curriculum for the selected school and standard.
+                  </span>
+                </span>
+              </label>
+            </div>
           </div>
-        </div>
-      )}
+        </form>
+      </Modal>
 
       {/* CUSTOM DELETE MODAL */}
-      {deleteRequirement && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-stone-950/45 p-4 lg:pl-72 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-3xl border border-stone-200/80 bg-white/95 p-6 shadow-2xl backdrop-blur-xl sm:p-7">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-red-100 text-xl font-bold text-red-600">
-              !
-            </div>
+      <Modal
+        isOpen={Boolean(deleteRequirement)}
+        onClose={closeDeleteModal}
+        title="Delete Syllabus Requirement?"
+        size="md"
+        footer={
+          <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end w-full">
+            <button
+              type="button"
+              onClick={closeDeleteModal}
+              disabled={deleting}
+              className="rounded-xl border border-stone-200 bg-white px-4 py-2.5 text-sm font-semibold text-stone-700 transition duration-200 hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Cancel
+            </button>
 
-            <h2 className="mt-4 text-xl font-bold tracking-tight text-stone-900">
-              Delete Syllabus Requirement?
-            </h2>
+            <button
+              type="button"
+              onClick={confirmDelete}
+              disabled={deleting}
+              className="rounded-xl bg-red-500 px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-red-200 transition duration-200 hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {deleting ? "Deleting..." : "Delete Requirement"}
+            </button>
+          </div>
+        }
+      >
+        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-red-100 text-xl font-bold text-red-600">
+          !
+        </div>
 
-            <p className="mt-2 text-sm leading-relaxed text-stone-500">
-              This will remove the syllabus requirement for{" "}
-              <span className="font-semibold text-stone-800">
-                {deleteRequirement.topic?.name || "this topic"}
-              </span>
-              . This action cannot be undone.
-            </p>
+        <p className="mt-3 text-sm leading-relaxed text-stone-500">
+          This will remove the syllabus requirement for{" "}
+          <span className="font-semibold text-stone-800">
+            {deleteRequirement?.topic?.name || "this topic"}
+          </span>
+          . This action cannot be undone.
+        </p>
 
-            <div className="mt-4 rounded-xl border border-stone-200/70 bg-stone-50/70 p-4">
-              <div className="grid gap-2.5">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-stone-400">
-                    School
-                  </p>
+        {deleteRequirement && (
+          <div className="mt-4 rounded-xl border border-stone-200/70 bg-stone-50/70 p-4">
+            <div className="grid gap-2.5">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-stone-400">
+                  School
+                </p>
 
-                  <p className="mt-0.5 text-sm font-medium text-stone-800">
-                    {deleteRequirement.school?.name || "Unknown school"}
-                  </p>
-                </div>
+                <p className="mt-0.5 text-sm font-medium text-stone-800">
+                  {deleteRequirement.school?.name || "Unknown school"}
+                </p>
+              </div>
 
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-stone-400">
-                    Standard
-                  </p>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-stone-400">
+                  Standard
+                </p>
 
-                  <p className="mt-0.5 text-sm font-medium text-stone-800">
-                    {deleteRequirement.standard?.name ||
-                      "Unknown standard"}
-                  </p>
-                </div>
+                <p className="mt-0.5 text-sm font-medium text-stone-800">
+                  {deleteRequirement.standard?.name ||
+                    "Unknown standard"}
+                </p>
+              </div>
 
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-stone-400">
-                    Subject
-                  </p>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-stone-400">
+                  Subject
+                </p>
 
-                  <p className="mt-0.5 text-sm font-medium text-stone-800">
-                    {deleteRequirement.subject?.name ||
-                      "Unknown subject"}
-                  </p>
-                </div>
+                <p className="mt-0.5 text-sm font-medium text-stone-800">
+                  {deleteRequirement.subject?.name ||
+                    "Unknown subject"}
+                </p>
               </div>
             </div>
-
-            <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-              <button
-                type="button"
-                onClick={closeDeleteModal}
-                disabled={deleting}
-                className="rounded-xl border border-stone-200 bg-white px-4 py-2.5 text-sm font-semibold text-stone-700 transition duration-200 hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                Cancel
-              </button>
-
-              <button
-                type="button"
-                onClick={confirmDelete}
-                disabled={deleting}
-                className="rounded-xl bg-red-500 px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-red-200 transition duration-200 hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {deleting ? "Deleting..." : "Delete Requirement"}
-              </button>
-            </div>
           </div>
-        </div>
-      )}
+        )}
+      </Modal>
     </div>
   );
 }

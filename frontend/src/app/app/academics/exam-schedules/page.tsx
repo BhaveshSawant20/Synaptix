@@ -1,6 +1,8 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import Modal from "@/app/app/components/Modal";
 
 import { API_BASE } from "@/lib/api";
 
@@ -55,6 +57,7 @@ function getToken() {
 }
 
 export default function ExamSchedulesPage() {
+  const router = useRouter();
   const [schedules, setSchedules] = useState<ExamSchedule[]>([]);
   const [exams, setExams] = useState<Exam[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
@@ -77,17 +80,14 @@ export default function ExamSchedulesPage() {
 
   async function handleUnauthorized() {
     localStorage.removeItem("synaptix_token");
-    window.location.href = "/login";
+    router.push("/login");
   }
 
   async function fetchData() {
     try {
-      setLoading(true);
-      setError("");
-
       const token = getToken();
       if (!token) {
-        window.location.href = "/login";
+        router.push("/login");
         return;
       }
 
@@ -154,7 +154,19 @@ export default function ExamSchedulesPage() {
   }
 
   useEffect(() => {
-    fetchData();
+    let ignore = false;
+
+    async function init() {
+      if (!ignore) {
+        await fetchData();
+      }
+    }
+
+    init();
+
+    return () => {
+      ignore = true;
+    };
   }, []);
 
   const filteredSchedules = useMemo(() => {
@@ -393,7 +405,7 @@ export default function ExamSchedulesPage() {
 
       const token = getToken();
       if (!token) {
-        window.location.href = "/login";
+        router.push("/login");
         return;
       }
 
@@ -477,7 +489,7 @@ export default function ExamSchedulesPage() {
 
       const token = getToken();
       if (!token) {
-        window.location.href = "/login";
+        router.push("/login");
         return;
       }
 
@@ -943,260 +955,259 @@ export default function ExamSchedulesPage() {
       </div>
 
       {/* Edit / Create Modal */}
-      {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-950/40 p-4 lg:pl-72 backdrop-blur-sm">
-          <div className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-3xl border border-stone-200/80 bg-white/95 shadow-2xl backdrop-blur-xl">
-            <div className="flex items-start justify-between border-b border-stone-200/70 px-6 py-5 sm:px-7">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-orange-600">
-                  {editingSchedule
-                    ? "Edit Schedule"
-                    : "New Schedule"}
-                </p>
+      <Modal
+        isOpen={isModalOpen}
+        onClose={closeModal}
+        title={editingSchedule ? "Update Exam Schedule" : "Create Exam Schedule"}
+        subtitle={editingSchedule ? "Edit Schedule" : "New Schedule"}
+        size="2xl"
+        footer={
+          <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end w-full">
+            <button
+              type="button"
+              onClick={closeModal}
+              disabled={saving}
+              className="rounded-xl border border-stone-200 bg-white px-4 py-2.5 text-sm font-semibold text-stone-700 transition duration-200 hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Cancel
+            </button>
 
-                <h2 className="mt-1 text-xl font-bold tracking-tight text-stone-900">
-                  {editingSchedule
-                    ? "Update Exam Schedule"
-                    : "Create Exam Schedule"}
-                </h2>
-              </div>
+            <button
+              type="submit"
+              form="exam-schedule-form"
+              disabled={saving}
+              className="rounded-xl bg-orange-500 px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-orange-200 transition duration-200 hover:-translate-y-0.5 hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {saving
+                ? "Saving..."
+                : editingSchedule
+                  ? "Update Schedule"
+                  : "Create Schedule"}
+            </button>
+          </div>
+        }
+      >
+        <form
+          id="exam-schedule-form"
+          onSubmit={handleSubmit}
+        >
+          {error && (
+            <div className="mb-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+              {error}
+            </div>
+          )}
 
-              <button
-                type="button"
-                onClick={closeModal}
-                className="flex h-9 w-9 items-center justify-center rounded-xl border border-stone-200 bg-white text-lg text-stone-500 transition hover:border-orange-200 hover:text-orange-600"
+          <div className="grid gap-4 sm:grid-cols-2">
+            {/* Exam */}
+            <div className="sm:col-span-2">
+              <label className="mb-1.5 block text-xs font-semibold text-stone-700">
+                Exam{" "}
+                <span className="text-orange-500">
+                  *
+                </span>
+              </label>
+
+              <select
+                value={form.examId}
+                onChange={(event) =>
+                  updateForm(
+                    "examId",
+                    event.target.value
+                  )
+                }
+                className="h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-900 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
               >
-                ×
-              </button>
+                <option value="">
+                  Select exam
+                </option>
+
+                {exams.map((exam) => (
+                  <option
+                    key={exam.id}
+                    value={exam.id}
+                  >
+                    {exam.name}
+                    {exam.academicYear
+                      ? ` — ${exam.academicYear}`
+                      : ""}
+                  </option>
+                ))}
+              </select>
             </div>
 
-            <form
-              onSubmit={handleSubmit}
-              className="p-6 sm:p-7"
-            >
-              {error && (
-                <div className="mb-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
-                  {error}
-                </div>
-              )}
+            {/* Subject */}
+            <div className="sm:col-span-2">
+              <label className="mb-1.5 block text-xs font-semibold text-stone-700">
+                Subject{" "}
+                <span className="text-orange-500">
+                  *
+                </span>
+              </label>
 
-              <div className="grid gap-4 sm:grid-cols-2">
-                {/* Exam */}
-                <div className="sm:col-span-2">
-                  <label className="mb-1.5 block text-xs font-semibold text-stone-700">
-                    Exam{" "}
-                    <span className="text-orange-500">
-                      *
-                    </span>
-                  </label>
+              <select
+                value={form.subjectId}
+                onChange={(event) =>
+                  updateForm(
+                    "subjectId",
+                    event.target.value
+                  )
+                }
+                className="h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-900 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
+              >
+                <option value="">
+                  Select subject
+                </option>
 
-                  <select
-                    value={form.examId}
-                    onChange={(event) =>
-                      updateForm(
-                        "examId",
-                        event.target.value
-                      )
-                    }
-                    className="h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-900 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
+                {subjects.map((subject) => (
+                  <option
+                    key={subject.id}
+                    value={subject.id}
                   >
-                    <option value="">
-                      Select exam
-                    </option>
+                    {subject.name}
+                    {subject.code
+                      ? ` — ${subject.code}`
+                      : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-                    {exams.map((exam) => (
-                      <option
-                        key={exam.id}
-                        value={exam.id}
-                      >
-                        {exam.name}
-                        {exam.academicYear
-                          ? ` — ${exam.academicYear}`
-                          : ""}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+            {/* Date */}
+            <div className="sm:col-span-2">
+              <label className="mb-1.5 block text-xs font-semibold text-stone-700">
+                Exam Date{" "}
+                <span className="text-orange-500">
+                  *
+                </span>
+              </label>
 
-                {/* Subject */}
-                <div className="sm:col-span-2">
-                  <label className="mb-1.5 block text-xs font-semibold text-stone-700">
-                    Subject{" "}
-                    <span className="text-orange-500">
-                      *
-                    </span>
-                  </label>
+              <input
+                type="date"
+                value={form.examDate}
+                onChange={(event) =>
+                  updateForm(
+                    "examDate",
+                    event.target.value
+                  )
+                }
+                className="h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-900 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
+              />
+            </div>
 
-                  <select
-                    value={form.subjectId}
-                    onChange={(event) =>
-                      updateForm(
-                        "subjectId",
-                        event.target.value
-                      )
-                    }
-                    className="h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-900 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
-                  >
-                    <option value="">
-                      Select subject
-                    </option>
+            {/* Start Time */}
+            <div>
+              <label className="mb-1.5 block text-xs font-semibold text-stone-700">
+                Start Time
+              </label>
 
-                    {subjects.map((subject) => (
-                      <option
-                        key={subject.id}
-                        value={subject.id}
-                      >
-                        {subject.name}
-                        {subject.code
-                          ? ` — ${subject.code}`
-                          : ""}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+              <input
+                type="time"
+                value={form.startTime}
+                onChange={(event) =>
+                  updateForm(
+                    "startTime",
+                    event.target.value
+                  )
+                }
+                className="h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-900 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
+              />
+            </div>
 
-                {/* Date */}
-                <div className="sm:col-span-2">
-                  <label className="mb-1.5 block text-xs font-semibold text-stone-700">
-                    Exam Date{" "}
-                    <span className="text-orange-500">
-                      *
-                    </span>
-                  </label>
+            {/* End Time */}
+            <div>
+              <label className="mb-1.5 block text-xs font-semibold text-stone-700">
+                End Time
+              </label>
 
-                  <input
-                    type="date"
-                    value={form.examDate}
-                    onChange={(event) =>
-                      updateForm(
-                        "examDate",
-                        event.target.value
-                      )
-                    }
-                    className="h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-900 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
-                  />
-                </div>
+              <input
+                type="time"
+                value={form.endTime}
+                onChange={(event) =>
+                  updateForm(
+                    "endTime",
+                    event.target.value
+                  )
+                }
+                className="h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-900 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
+              />
+            </div>
 
-                {/* Start Time */}
-                <div>
-                  <label className="mb-1.5 block text-xs font-semibold text-stone-700">
-                    Start Time
-                  </label>
+            {/* Total Marks */}
+            <div className="sm:col-span-2">
+              <label className="mb-1.5 block text-xs font-semibold text-stone-700">
+                Total Marks
+              </label>
 
-                  <input
-                    type="time"
-                    value={form.startTime}
-                    onChange={(event) =>
-                      updateForm(
-                        "startTime",
-                        event.target.value
-                      )
-                    }
-                    className="h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-900 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
-                  />
-                </div>
+              <input
+                type="number"
+                min="0"
+                value={form.totalMarks}
+                onChange={(event) =>
+                  updateForm(
+                    "totalMarks",
+                    event.target.value
+                  )
+                }
+                placeholder="e.g. 100"
+                className="h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-900 placeholder:text-stone-400 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
+              />
+            </div>
 
-                {/* End Time */}
-                <div>
-                  <label className="mb-1.5 block text-xs font-semibold text-stone-700">
-                    End Time
-                  </label>
+            {/* Syllabus Note */}
+            <div className="sm:col-span-2">
+              <label className="mb-1.5 block text-xs font-semibold text-stone-700">
+                Syllabus Note
+              </label>
 
-                  <input
-                    type="time"
-                    value={form.endTime}
-                    onChange={(event) =>
-                      updateForm(
-                        "endTime",
-                        event.target.value
-                      )
-                    }
-                    className="h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-900 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
-                  />
-                </div>
-
-                {/* Total Marks */}
-                <div className="sm:col-span-2">
-                  <label className="mb-1.5 block text-xs font-semibold text-stone-700">
-                    Total Marks
-                  </label>
-
-                  <input
-                    type="number"
-                    min="0"
-                    value={form.totalMarks}
-                    onChange={(event) =>
-                      updateForm(
-                        "totalMarks",
-                        event.target.value
-                      )
-                    }
-                    placeholder="e.g. 100"
-                    className="h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-900 placeholder:text-stone-400 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
-                  />
-                </div>
-
-                {/* Syllabus Note */}
-                <div className="sm:col-span-2">
-                  <label className="mb-1.5 block text-xs font-semibold text-stone-700">
-                    Syllabus Note
-                  </label>
-
-                  <textarea
-                    value={form.syllabusNote}
-                    onChange={(event) =>
-                      updateForm(
-                        "syllabusNote",
-                        event.target.value
-                      )
-                    }
-                    rows={4}
-                    placeholder="e.g. Newton's Laws, applications and numerical problems"
-                    className="w-full resize-none rounded-xl border border-stone-200 bg-white px-4 py-3 text-sm leading-relaxed text-stone-900 placeholder:text-stone-400 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
-                  />
-                </div>
-              </div>
-
-              <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-                <button
-                  type="button"
-                  onClick={closeModal}
-                  disabled={saving}
-                  className="rounded-xl border border-stone-200 bg-white px-4 py-2.5 text-sm font-semibold text-stone-700 transition duration-200 hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  Cancel
-                </button>
-
-                <button
-                  type="submit"
-                  disabled={saving}
-                  className="rounded-xl bg-orange-500 px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-orange-200 transition duration-200 hover:-translate-y-0.5 hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {saving
-                    ? "Saving..."
-                    : editingSchedule
-                      ? "Update Schedule"
-                      : "Create Schedule"}
-                </button>
-              </div>
-            </form>
+              <textarea
+                value={form.syllabusNote}
+                onChange={(event) =>
+                  updateForm(
+                    "syllabusNote",
+                    event.target.value
+                  )
+                }
+                rows={4}
+                placeholder="e.g. Newton's Laws, applications and numerical problems"
+                className="w-full resize-none rounded-xl border border-stone-200 bg-white px-4 py-3 text-sm leading-relaxed text-stone-900 placeholder:text-stone-400 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
+              />
+            </div>
           </div>
-        </div>
-      )}
+        </form>
+      </Modal>
 
       {/* In-App Delete Confirmation Modal */}
-      {deleteSchedule && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-stone-950/45 p-4 lg:pl-72 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-3xl border border-stone-200/80 bg-white/95 p-6 shadow-2xl backdrop-blur-xl sm:p-7">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-red-100 text-xl font-bold text-red-600">
-              !
-            </div>
+      <Modal
+        isOpen={Boolean(deleteSchedule)}
+        onClose={closeDeleteModal}
+        title="Delete Exam Schedule?"
+        description="This action cannot be undone."
+        maxWidth="md"
+        footer={
+          <>
+            <button
+              type="button"
+              onClick={closeDeleteModal}
+              disabled={deleting}
+              className="rounded-xl border border-stone-200 bg-white px-4 py-2.5 text-sm font-semibold text-stone-700 transition duration-200 hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Cancel
+            </button>
 
-            <h2 className="mt-4 text-xl font-bold tracking-tight text-stone-900">
-              Delete Exam Schedule?
-            </h2>
-
-            <p className="mt-2 text-sm leading-relaxed text-stone-500">
+            <button
+              type="button"
+              onClick={confirmDelete}
+              disabled={deleting}
+              className="rounded-xl bg-red-500 px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-red-200 transition duration-200 hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {deleting ? "Deleting..." : "Delete Schedule"}
+            </button>
+          </>
+        }
+      >
+        {deleteSchedule && (
+          <div className="space-y-4">
+            <p className="text-sm leading-relaxed text-stone-600">
               Are you sure you want to remove the examination schedule for{" "}
               <span className="font-semibold text-stone-800">
                 {deleteSchedule.subject?.name || "this subject"}
@@ -1205,10 +1216,10 @@ export default function ExamSchedulesPage() {
               <span className="font-semibold text-stone-800">
                 {deleteSchedule.exam?.name || "this exam"}
               </span>
-              ? This action cannot be undone.
+              ?
             </p>
 
-            <div className="mt-4 rounded-xl border border-stone-200/70 bg-stone-50/70 p-4">
+            <div className="rounded-xl border border-stone-200/70 bg-stone-50/70 p-4">
               <div className="grid gap-2.5">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-[0.16em] text-stone-400">
@@ -1230,29 +1241,9 @@ export default function ExamSchedulesPage() {
                 </div>
               </div>
             </div>
-
-            <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-              <button
-                type="button"
-                onClick={closeDeleteModal}
-                disabled={deleting}
-                className="rounded-xl border border-stone-200 bg-white px-4 py-2.5 text-sm font-semibold text-stone-700 transition duration-200 hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                Cancel
-              </button>
-
-              <button
-                type="button"
-                onClick={confirmDelete}
-                disabled={deleting}
-                className="rounded-xl bg-red-500 px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-red-200 transition duration-200 hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {deleting ? "Deleting..." : "Delete Schedule"}
-              </button>
-            </div>
           </div>
-        </div>
-      )}
+        )}
+      </Modal>
     </div>
   );
 }

@@ -87,17 +87,19 @@ export default function SchoolDetailsPage() {
     state: "",
   });
 
-  async function loadData() {
+  async function loadData(isInitial = false) {
     const token = getToken();
 
     if (!token) {
-      window.location.href = "/login";
+      router.push("/login");
       return;
     }
 
     try {
-      setLoading(true);
-      setError("");
+      if (!isInitial) {
+        setLoading(true);
+        setError("");
+      }
 
       const headers = {
         Authorization: `Bearer ${token}`,
@@ -125,7 +127,7 @@ export default function SchoolDetailsPage() {
         studentsResponse.status === 401
       ) {
         localStorage.removeItem("synaptix_token");
-        window.location.href = "/login";
+        router.push("/login");
         return;
       }
 
@@ -172,9 +174,16 @@ export default function SchoolDetailsPage() {
   }
 
   useEffect(() => {
-    if (schoolId) {
-      loadData();
+    let ignore = false;
+    async function init() {
+      if (!ignore && schoolId) {
+        await loadData(true);
+      }
     }
+    init();
+    return () => {
+      ignore = true;
+    };
   }, [schoolId]);
 
   function openEditModal() {
@@ -208,7 +217,7 @@ export default function SchoolDetailsPage() {
     const token = getToken();
 
     if (!token) {
-      window.location.href = "/login";
+      router.push("/login");
       return;
     }
 
@@ -239,7 +248,7 @@ export default function SchoolDetailsPage() {
 
       if (response.status === 401) {
         localStorage.removeItem("synaptix_token");
-        window.location.href = "/login";
+        router.push("/login");
         return;
       }
 
@@ -333,7 +342,7 @@ export default function SchoolDetailsPage() {
 
             <button
               type="button"
-              onClick={loadData}
+              onClick={() => loadData()}
               className="mt-5 rounded-xl bg-red-600 px-4 py-2 text-xs font-semibold text-white shadow-sm transition duration-200 hover:bg-red-700 active:scale-95"
             >
               Retry

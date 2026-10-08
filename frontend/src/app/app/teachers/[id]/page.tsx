@@ -124,7 +124,6 @@ export default function TeacherDetailsPage() {
   const [schedules, setSchedules] = useState<TimetableSchedule[]>([]);
 
   const [loading, setLoading] = useState(true);
-  const [schedulesLoading, setSchedulesLoading] = useState(false);
   const [error, setError] = useState("");
 
   const [showEditModal, setShowEditModal] = useState(false);
@@ -138,17 +137,19 @@ export default function TeacherDetailsPage() {
     specialization: "",
   });
 
-  async function loadData() {
+  async function loadData(isInitial = false) {
     const token = getToken();
 
     if (!token) {
-      window.location.href = "/login";
+      router.push("/login");
       return;
     }
 
     try {
-      setLoading(true);
-      setError("");
+      if (!isInitial) {
+        setLoading(true);
+        setError("");
+      }
 
       const headers = {
         Authorization: `Bearer ${token}`,
@@ -185,7 +186,7 @@ export default function TeacherDetailsPage() {
         schedulesResponse.status === 401
       ) {
         localStorage.removeItem("synaptix_token");
-        window.location.href = "/login";
+        router.push("/login");
         return;
       }
 
@@ -267,9 +268,16 @@ export default function TeacherDetailsPage() {
   }
 
   useEffect(() => {
-    if (teacherId) {
-      loadData();
+    let ignore = false;
+    async function init() {
+      if (!ignore && teacherId) {
+        await loadData(true);
+      }
     }
+    init();
+    return () => {
+      ignore = true;
+    };
   }, [teacherId]);
 
   function openEditModal() {
@@ -298,7 +306,7 @@ export default function TeacherDetailsPage() {
     const token = getToken();
 
     if (!token) {
-      window.location.href = "/login";
+      router.push("/login");
       return;
     }
 
@@ -329,7 +337,7 @@ export default function TeacherDetailsPage() {
 
       if (response.status === 401) {
         localStorage.removeItem("synaptix_token");
-        window.location.href = "/login";
+        router.push("/login");
         return;
       }
 

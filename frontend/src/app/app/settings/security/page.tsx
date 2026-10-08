@@ -1,12 +1,14 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
 
 import { API_BASE_URL } from "@/lib/api";
 import { EyeIcon } from "@/components/EyeIcon";
 
 export default function SecuritySettingsPage() {
+  const router = useRouter();
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -48,7 +50,7 @@ export default function SecuritySettingsPage() {
     const token = localStorage.getItem("synaptix_token");
 
     if (!token) {
-      window.location.href = "/login";
+      router.push("/login");
       return;
     }
 
@@ -75,7 +77,7 @@ export default function SecuritySettingsPage() {
         }
 
         localStorage.removeItem("synaptix_token");
-        window.location.href = "/login";
+        router.push("/login");
         return;
       }
 

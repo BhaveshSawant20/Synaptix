@@ -1,11 +1,13 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
 
 import { API_BASE_URL } from "@/lib/api";
 
 export default function AccountSettingsPage() {
+  const router = useRouter();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
 
@@ -19,7 +21,7 @@ export default function AccountSettingsPage() {
     const token = localStorage.getItem("synaptix_token");
 
     if (!token) {
-      window.location.href = "/login";
+      router.push("/login");
       return;
     }
 
@@ -33,7 +35,7 @@ export default function AccountSettingsPage() {
 
         if (response.status === 401) {
           localStorage.removeItem("synaptix_token");
-          window.location.href = "/login";
+          router.push("/login");
           return;
         }
 
@@ -73,7 +75,7 @@ export default function AccountSettingsPage() {
     const token = localStorage.getItem("synaptix_token");
 
     if (!token) {
-      window.location.href = "/login";
+      router.push("/login");
       return;
     }
 
@@ -94,7 +96,7 @@ export default function AccountSettingsPage() {
 
       if (response.status === 401) {
         localStorage.removeItem("synaptix_token");
-        window.location.href = "/login";
+        router.push("/login");
         return;
       }
 

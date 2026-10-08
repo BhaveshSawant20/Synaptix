@@ -70,7 +70,7 @@ export default function TopicsPage() {
     orderIndex: "",
   });
 
-  async function loadData() {
+  async function loadData(isInitial = false) {
     const token = getToken();
 
     if (!token) {
@@ -79,8 +79,10 @@ export default function TopicsPage() {
     }
 
     try {
-      setLoading(true);
-      setError("");
+      if (!isInitial) {
+        setLoading(true);
+        setError("");
+      }
 
       const headers = {
         Authorization: `Bearer ${token}`,
@@ -142,7 +144,16 @@ export default function TopicsPage() {
   }
 
   useEffect(() => {
-    loadData();
+    let ignore = false;
+    async function init() {
+      if (!ignore) {
+        await loadData(true);
+      }
+    }
+    init();
+    return () => {
+      ignore = true;
+    };
   }, []);
 
   const filteredTopics = useMemo(() => {

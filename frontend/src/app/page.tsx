@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 const features = [
   {
     number: "01",
@@ -263,7 +265,7 @@ export default function Home() {
       <header className="fixed inset-x-0 top-0 z-50 border-b border-orange-100/70 bg-[#fffaf5]/90 backdrop-blur-xl">
         <nav className="mx-auto flex h-[76px] max-w-7xl items-center justify-between px-5 sm:px-8 lg:px-12">
 
-          <a
+          <Link
             href="/"
             className="flex items-center gap-3"
           >
@@ -278,7 +280,7 @@ export default function Home() {
                 COACHING INTELLIGENCE
               </p>
             </div>
-          </a>
+          </Link>
 
           <div className="hidden items-center gap-8 md:flex">
             <a
@@ -628,7 +630,7 @@ export default function Home() {
       {/* Footer */}
       <footer className="border-t border-stone-200/70 bg-white/40">
         <div className="mx-auto flex max-w-7xl flex-col gap-4 px-5 py-8 sm:px-8 md:flex-row md:items-center md:justify-between lg:px-12">
-          <a
+          <Link
             href="/"
             className="flex items-center gap-3"
           >
@@ -637,7 +639,7 @@ export default function Home() {
             <span className="font-bold tracking-tight text-stone-800">
               Synaptix
             </span>
-          </a>
+          </Link>
 
           <p className="text-xs text-stone-500">
             Academic clarity for coaching institutes.

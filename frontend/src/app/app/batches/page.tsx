@@ -231,25 +231,33 @@ export default function BatchesPage() {
       ? localStorage.getItem("synaptix_token")
       : null;
 
+  function handleUnauthorized() {
+    localStorage.removeItem("synaptix_token");
+    router.push("/login");
+  }
+
   // =========================
   // LOAD BATCHES
   // =========================
 
   async function loadBatches() {
     try {
-      setLoading(true);
-      setError("");
+      const currentToken = localStorage.getItem("synaptix_token");
+      if (!currentToken) {
+        handleUnauthorized();
+        return;
+      }
 
       const response = await fetch(`${API_URL}/batches`, {
         headers: {
-          Authorization: `Bearer ${token}`,
+          Authorization: `Bearer ${currentToken}`,
         },
       });
 
       const data = await response.json();
 
       if (response.status === 401) {
-        window.location.href = "/login";
+        handleUnauthorized();
         return;
       }
 
@@ -279,16 +287,21 @@ export default function BatchesPage() {
 
   async function loadAllSchedules() {
     try {
-      setSchedulesLoading(true);
+      const currentToken = localStorage.getItem("synaptix_token");
+      if (!currentToken) {
+        handleUnauthorized();
+        return;
+      }
+
       const [schedulesRes, teachersRes, subjectsRes] = await Promise.all([
         fetch(`${API_BASE}/batch-schedules`, {
-          headers: { Authorization: `Bearer ${token}` },
+          headers: { Authorization: `Bearer ${currentToken}` },
         }),
         fetch(`${API_BASE}/teachers`, {
-          headers: { Authorization: `Bearer ${token}` },
+          headers: { Authorization: `Bearer ${currentToken}` },
         }),
         fetch(`${API_BASE}/subjects`, {
-          headers: { Authorization: `Bearer ${token}` },
+          headers: { Authorization: `Bearer ${currentToken}` },
         }),
       ]);
 
@@ -297,7 +310,7 @@ export default function BatchesPage() {
         teachersRes.status === 401 ||
         subjectsRes.status === 401
       ) {
-        window.location.href = "/login";
+        handleUnauthorized();
         return;
       }
 
@@ -326,13 +339,23 @@ export default function BatchesPage() {
   }
 
   useEffect(() => {
-    if (!token) {
-      window.location.href = "/login";
+    let ignore = false;
+    const currentToken = localStorage.getItem("synaptix_token");
+    if (!currentToken) {
+      router.push("/login");
       return;
     }
 
-    loadBatches();
-    loadAllSchedules();
+    async function init() {
+      if (!ignore) {
+        await Promise.all([loadBatches(), loadAllSchedules()]);
+      }
+    }
+    init();
+
+    return () => {
+      ignore = true;
+    };
   }, []);
 
   function showConflictModal(data: {
@@ -386,7 +409,7 @@ export default function BatchesPage() {
         studentsResponse.status === 401 ||
         assignedResponse.status === 401
       ) {
-        window.location.href = "/login";
+        handleUnauthorized();
         return;
       }
 
@@ -477,7 +500,7 @@ export default function BatchesPage() {
       const data = await response.json();
 
       if (response.status === 401) {
-        window.location.href = "/login";
+        handleUnauthorized();
         return;
       }
 
@@ -524,7 +547,7 @@ export default function BatchesPage() {
       const data = await response.json();
 
       if (response.status === 401) {
-        window.location.href = "/login";
+        handleUnauthorized();
         return;
       }
 
@@ -574,7 +597,7 @@ export default function BatchesPage() {
         teachersResponse.status === 401 ||
         assignedResponse.status === 401
       ) {
-        window.location.href = "/login";
+        handleUnauthorized();
         return;
       }
 
@@ -667,7 +690,7 @@ export default function BatchesPage() {
       const data = await response.json();
 
       if (response.status === 401) {
-        window.location.href = "/login";
+        handleUnauthorized();
         return;
       }
 
@@ -714,7 +737,7 @@ export default function BatchesPage() {
       const data = await response.json();
 
       if (response.status === 401) {
-        window.location.href = "/login";
+        handleUnauthorized();
         return;
       }
 
@@ -816,7 +839,7 @@ export default function BatchesPage() {
       const data = await response.json();
 
       if (response.status === 401) {
-        window.location.href = "/login";
+        handleUnauthorized();
         return;
       }
 
@@ -865,7 +888,7 @@ export default function BatchesPage() {
       const data = await response.json();
 
       if (response.status === 401) {
-        window.location.href = "/login";
+        handleUnauthorized();
         return;
       }
 
@@ -1030,7 +1053,7 @@ export default function BatchesPage() {
     e.preventDefault();
     const currentToken = localStorage.getItem("synaptix_token");
     if (!currentToken) {
-      window.location.href = "/login";
+      handleUnauthorized();
       return;
     }
 
@@ -1095,8 +1118,7 @@ export default function BatchesPage() {
       });
 
       if (response.status === 401) {
-        localStorage.removeItem("synaptix_token");
-        window.location.href = "/login";
+        handleUnauthorized();
         return;
       }
 
@@ -1126,7 +1148,7 @@ export default function BatchesPage() {
     if (!deletingSchedule) return;
     const currentToken = localStorage.getItem("synaptix_token");
     if (!currentToken) {
-      window.location.href = "/login";
+      handleUnauthorized();
       return;
     }
 
@@ -1143,8 +1165,7 @@ export default function BatchesPage() {
       );
 
       if (response.status === 401) {
-        localStorage.removeItem("synaptix_token");
-        window.location.href = "/login";
+        handleUnauthorized();
         return;
       }
 

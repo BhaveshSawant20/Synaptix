@@ -259,9 +259,11 @@ export default function AppLayout({
   /*
    * Close sidebar automatically after navigation.
    */
-  useEffect(() => {
+  const [prevPathname, setPrevPathname] = useState(pathname);
+  if (pathname !== prevPathname) {
+    setPrevPathname(pathname);
     setSidebarOpen(false);
-  }, [pathname]);
+  }
 
   /*
    * Prevent background scrolling while the mobile/tablet

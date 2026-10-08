@@ -1,7 +1,9 @@
 "use client";
 
-import { ReactNode, useEffect, useState } from "react";
+import { ReactNode, useEffect, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
+
+const emptySubscribe = () => () => {};
 
 export type ModalProps = {
   isOpen: boolean;
@@ -9,6 +11,8 @@ export type ModalProps = {
   title: string;
   badge?: string;
   description?: string;
+  subtitle?: string;
+  size?: "sm" | "md" | "lg" | "xl" | "2xl" | "3xl" | "4xl" | "5xl" | string;
   children: ReactNode;
   footer?: ReactNode;
   maxWidth?: "sm" | "md" | "lg" | "xl" | "2xl" | "3xl" | "4xl" | "5xl";
@@ -16,7 +20,7 @@ export type ModalProps = {
   closeOnBackdrop?: boolean;
 };
 
-const MAX_WIDTH_MAP: Record<NonNullable<ModalProps["maxWidth"]>, string> = {
+const MAX_WIDTH_MAP: Record<string, string> = {
   sm: "max-w-sm",
   md: "max-w-md",
   lg: "max-w-lg",
@@ -33,17 +37,19 @@ export default function Modal({
   title,
   badge,
   description,
+  subtitle,
   children,
   footer,
   maxWidth = "xl",
+  size,
   className = "",
   closeOnBackdrop = true,
 }: ModalProps) {
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  const mounted = useSyncExternalStore(
+    emptySubscribe,
+    () => true,
+    () => false
+  );
 
   useEffect(() => {
     if (!isOpen) return;
@@ -67,7 +73,9 @@ export default function Modal({
 
   if (!isOpen || !mounted) return null;
 
-  const maxWidthClass = MAX_WIDTH_MAP[maxWidth] || "max-w-xl";
+  const effectiveDescription = description || subtitle;
+  const effectiveWidthKey = size || maxWidth;
+  const maxWidthClass = MAX_WIDTH_MAP[effectiveWidthKey] || "max-w-xl";
 
   const modalContent = (
     <div
@@ -104,8 +112,8 @@ export default function Modal({
                 {title}
               </h2>
 
-              {description && (
-                <p className="mt-1 text-sm text-stone-500">{description}</p>
+              {effectiveDescription && (
+                <p className="mt-1 text-sm text-stone-500">{effectiveDescription}</p>
               )}
             </div>
 

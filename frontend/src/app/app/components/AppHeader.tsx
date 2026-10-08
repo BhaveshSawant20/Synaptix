@@ -1,10 +1,12 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { API_BASE } from "@/lib/api";
 
 export default function AppHeader() {
+  const router = useRouter();
   const [instituteName, setInstituteName] = useState("Institute");
   const [logoUrl, setLogoUrl] = useState("");
   const [initials, setInitials] = useState("IN");
@@ -34,7 +36,7 @@ export default function AppHeader() {
 
         if (response.status === 401) {
           localStorage.removeItem("synaptix_token");
-          window.location.href = "/login";
+          router.push("/login");
           return;
         }
 
@@ -166,7 +168,7 @@ export default function AppHeader() {
 
   function handleLogout() {
     localStorage.removeItem("synaptix_token");
-    window.location.href = "/login";
+    router.push("/login");
   }
 
   return (

@@ -283,14 +283,11 @@ export default function StudentDetailsPage() {
     const token = getToken();
 
     if (!token) {
-      window.location.href = "/login";
+      router.push("/login");
       return;
     }
 
     try {
-      setLoading(true);
-      setError("");
-
       const headers = {
         Authorization: `Bearer ${token}`,
       };
@@ -317,7 +314,7 @@ export default function StudentDetailsPage() {
         standardsResponse.status === 401
       ) {
         localStorage.removeItem("synaptix_token");
-        window.location.href = "/login";
+        router.push("/login");
         return;
       }
 
@@ -356,6 +353,8 @@ export default function StudentDetailsPage() {
         schoolId: loadedStudent.schoolId || "",
         standardId: loadedStudent.standardId || "",
       });
+
+      loadAcademicData(loadedStudent);
     } catch (err) {
       console.error("Failed to load student:", err);
       setError(err instanceof Error ? err.message : "Unable to load student.");
@@ -368,14 +367,11 @@ export default function StudentDetailsPage() {
     const token = getToken();
 
     if (!token) {
-      window.location.href = "/login";
+      router.push("/login");
       return;
     }
 
     try {
-      setAcademicLoading(true);
-      setAcademicError("");
-
       const headers = {
         Authorization: `Bearer ${token}`,
       };
@@ -416,7 +412,7 @@ export default function StudentDetailsPage() {
 
       if (responses.some((response) => response.status === 401)) {
         localStorage.removeItem("synaptix_token");
-        window.location.href = "/login";
+        router.push("/login");
         return;
       }
 
@@ -531,14 +527,20 @@ export default function StudentDetailsPage() {
   };
 
   useEffect(() => {
-    loadStudent();
-  }, [studentId]);
+    let ignore = false;
 
-  useEffect(() => {
-    if (student) {
-      loadAcademicData(student);
+    async function init() {
+      if (!ignore) {
+        await loadStudent();
+      }
     }
-  }, [student]);
+
+    init();
+
+    return () => {
+      ignore = true;
+    };
+  }, [studentId]);
 
   const school = student?.school;
   const standard = student?.standard;
@@ -689,7 +691,7 @@ export default function StudentDetailsPage() {
     const token = getToken();
 
     if (!token) {
-      window.location.href = "/login";
+      router.push("/login");
       return;
     }
 
@@ -717,7 +719,7 @@ export default function StudentDetailsPage() {
 
       if (response.status === 401) {
         localStorage.removeItem("synaptix_token");
-        window.location.href = "/login";
+        router.push("/login");
         return;
       }
 
@@ -1090,7 +1092,7 @@ export default function StudentDetailsPage() {
                 No subjects assigned
               </p>
               <p className="mt-1 text-xs text-stone-500">
-                No subjects are currently mapped to this student's standard.
+                No subjects are currently mapped to this student&apos;s standard.
               </p>
             </div>
           ) : (

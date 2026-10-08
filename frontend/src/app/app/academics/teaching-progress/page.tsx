@@ -1,6 +1,8 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import Modal from "@/app/app/components/Modal";
 
 import { API_URL } from "@/lib/api";
 
@@ -59,6 +61,11 @@ const emptyForm: FormState = {
   notes: "",
 };
 
+function getToken() {
+  if (typeof window === "undefined") return "";
+  return localStorage.getItem("synaptix_token") || "";
+}
+
 function formatDate(value?: string | null) {
   if (!value) return "—";
 
@@ -92,7 +99,7 @@ function statusClasses(status: TeachingProgress["status"]) {
 }
 
 export default function TeachingProgressPage() {
-  const [token, setToken] = useState("");
+  const router = useRouter();
 
   const [progress, setProgress] = useState<TeachingProgress[]>([]);
   const [batches, setBatches] = useState<Batch[]>([]);
@@ -121,26 +128,34 @@ export default function TeachingProgressPage() {
   const [modalError, setModalError] = useState("");
 
   useEffect(() => {
-    const storedToken = localStorage.getItem("synaptix_token");
+    let ignore = false;
 
-    if (!storedToken) {
-      window.location.href = "/login";
-      return;
+    async function init() {
+      if (!ignore) {
+        await loadInitialData();
+      }
     }
 
-    setToken(storedToken);
+    init();
+
+    return () => {
+      ignore = true;
+    };
   }, []);
 
-  useEffect(() => {
-    if (!token) return;
-
-    loadInitialData();
-  }, [token]);
+  async function handleUnauthorized() {
+    localStorage.removeItem("synaptix_token");
+    router.push("/login");
+  }
 
   async function loadInitialData() {
     try {
-      setLoading(true);
-      setError("");
+      const token = getToken();
+
+      if (!token) {
+        router.push("/login");
+        return;
+      }
 
       const headers = {
         Authorization: `Bearer ${token}`,
@@ -158,8 +173,7 @@ export default function TeachingProgressPage() {
         batchesResponse.status === 401 ||
         teachersResponse.status === 401
       ) {
-        localStorage.removeItem("synaptix_token");
-        window.location.href = "/login";
+        await handleUnauthorized();
         return;
       }
 
@@ -206,6 +220,13 @@ export default function TeachingProgressPage() {
     try {
       setTopicsLoading(true);
 
+      const token = getToken();
+
+      if (!token) {
+        await handleUnauthorized();
+        return;
+      }
+
       const response = await fetch(`${API_URL}/topics`, {
         headers: {
           Authorization: `Bearer ${token}`,
@@ -215,8 +236,7 @@ export default function TeachingProgressPage() {
       const data = await response.json();
 
       if (response.status === 401) {
-        localStorage.removeItem("synaptix_token");
-        window.location.href = "/login";
+        await handleUnauthorized();
         return;
       }
 
@@ -344,6 +364,13 @@ export default function TeachingProgressPage() {
 
       const method = editingProgress ? "PUT" : "POST";
 
+      const token = getToken();
+
+      if (!token) {
+        await handleUnauthorized();
+        return;
+      }
+
       const response = await fetch(url, {
         method,
         headers: {
@@ -356,8 +383,7 @@ export default function TeachingProgressPage() {
       const data = await response.json();
 
       if (response.status === 401) {
-        localStorage.removeItem("synaptix_token");
-        window.location.href = "/login";
+        await handleUnauthorized();
         return;
       }
 
@@ -394,6 +420,13 @@ export default function TeachingProgressPage() {
       setError("");
       setSuccess("");
 
+      const token = getToken();
+
+      if (!token) {
+        await handleUnauthorized();
+        return;
+      }
+
       const response = await fetch(
         `${API_URL}/teaching-progress/${deleteItem.id}`,
         {
@@ -407,8 +440,7 @@ export default function TeachingProgressPage() {
       const data = await response.json();
 
       if (response.status === 401) {
-        localStorage.removeItem("synaptix_token");
-        window.location.href = "/login";
+        await handleUnauthorized();
         return;
       }
 
@@ -807,293 +839,275 @@ export default function TeachingProgressPage() {
       </div>
 
       {/* Edit / Create Modal */}
-      {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-950/40 p-4 lg:pl-72 backdrop-blur-sm">
-          <div className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-3xl border border-stone-200/80 bg-white/95 shadow-2xl backdrop-blur-xl">
-            <div className="flex items-start justify-between border-b border-stone-200/70 px-6 py-5 sm:px-7">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-orange-600">
-                  {editingProgress ? "Update Record" : "New Record"}
-                </p>
+      <Modal
+        isOpen={isModalOpen}
+        onClose={closeModal}
+        title={editingProgress ? "Edit Teaching Progress" : "Add Teaching Progress"}
+        subtitle={editingProgress ? "Update Record" : "New Record"}
+        size="2xl"
+        footer={
+          <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end w-full">
+            <button
+              type="button"
+              onClick={closeModal}
+              disabled={saving}
+              className="rounded-xl border border-stone-200 bg-white px-4 py-2.5 text-sm font-semibold text-stone-700 transition duration-200 hover:bg-stone-50 disabled:opacity-50"
+            >
+              Cancel
+            </button>
 
-                <h2 className="mt-1 text-xl font-bold tracking-tight text-stone-900">
-                  {editingProgress
-                    ? "Edit Teaching Progress"
-                    : "Add Teaching Progress"}
-                </h2>
+            <button
+              type="submit"
+              form="teaching-progress-form"
+              disabled={saving}
+              className="rounded-xl bg-orange-500 px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-orange-200 transition duration-200 hover:-translate-y-0.5 hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {saving
+                ? "Saving..."
+                : editingProgress
+                ? "Update Progress"
+                : "Create Progress"}
+            </button>
+          </div>
+        }
+      >
+        <form id="teaching-progress-form" onSubmit={handleSubmit}>
+          {modalError && (
+            <div className="mb-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+              {modalError}
+            </div>
+          )}
+
+          <div className="space-y-4">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <label className="mb-1.5 block text-xs font-semibold text-stone-700">
+                  Batch <span className="text-orange-500">*</span>
+                </label>
+
+                <select
+                  value={form.batchId}
+                  onChange={(event) =>
+                    handleBatchChange(event.target.value)
+                  }
+                  disabled={Boolean(editingProgress)}
+                  className="h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-900 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100 disabled:bg-stone-50 disabled:text-stone-400"
+                >
+                  <option value="">Select batch</option>
+
+                  {batches.map((batch) => (
+                    <option key={batch.id} value={batch.id}>
+                      {batch.name}
+                    </option>
+                  ))}
+                </select>
               </div>
 
-              <button
-                type="button"
-                onClick={closeModal}
-                className="flex h-9 w-9 items-center justify-center rounded-xl border border-stone-200 bg-white text-lg text-stone-500 transition hover:border-orange-200 hover:text-orange-600"
-              >
-                ×
-              </button>
+              <div>
+                <label className="mb-1.5 block text-xs font-semibold text-stone-700">
+                  Topic <span className="text-orange-500">*</span>
+                </label>
+
+                <select
+                  value={form.topicId}
+                  onChange={(event) =>
+                    setForm((current) => ({
+                      ...current,
+                      topicId: event.target.value,
+                    }))
+                  }
+                  disabled={Boolean(editingProgress) || topicsLoading}
+                  className="h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-900 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100 disabled:bg-stone-50 disabled:text-stone-400"
+                >
+                  <option value="">
+                    {topicsLoading ? "Loading topics..." : "Select topic"}
+                  </option>
+
+                  {topics.map((topic) => (
+                    <option key={topic.id} value={topic.id}>
+                      {topic.subject?.name
+                        ? `${topic.subject.name} — ${topic.name}`
+                        : topic.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
 
-            <form onSubmit={handleSubmit} className="p-6 sm:p-7">
-              {modalError && (
-                <div className="mb-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
-                  {modalError}
-                </div>
-              )}
+            <div>
+              <label className="mb-1.5 block text-xs font-semibold text-stone-700">
+                Teacher
+              </label>
 
-              <div className="space-y-4">
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div>
-                    <label className="mb-1.5 block text-xs font-semibold text-stone-700">
-                      Batch <span className="text-orange-500">*</span>
-                    </label>
+              <select
+                value={form.teacherId}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    teacherId: event.target.value,
+                  }))
+                }
+                className="h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-900 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
+              >
+                <option value="">Unassigned</option>
 
-                    <select
-                      value={form.batchId}
-                      onChange={(event) =>
-                        handleBatchChange(event.target.value)
-                      }
-                      disabled={Boolean(editingProgress)}
-                      className="h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-900 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100 disabled:bg-stone-50 disabled:text-stone-400"
-                    >
-                      <option value="">Select batch</option>
+                {teachers.map((teacher) => (
+                  <option key={teacher.id} value={teacher.id}>
+                    {teacher.name}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-                      {batches.map((batch) => (
-                        <option key={batch.id} value={batch.id}>
-                          {batch.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+            <div>
+              <label className="mb-1.5 block text-xs font-semibold text-stone-700">
+                Status <span className="text-orange-500">*</span>
+              </label>
 
-                  <div>
-                    <label className="mb-1.5 block text-xs font-semibold text-stone-700">
-                      Topic <span className="text-orange-500">*</span>
-                    </label>
+              <select
+                value={form.status}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    status: event.target.value as FormState["status"],
+                  }))
+                }
+                className="h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-900 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
+              >
+                <option value="NOT_STARTED">Not Started</option>
+                <option value="IN_PROGRESS">In Progress</option>
+                <option value="COMPLETED">Completed</option>
+              </select>
+            </div>
 
-                    <select
-                      value={form.topicId}
-                      onChange={(event) =>
-                        setForm((current) => ({
-                          ...current,
-                          topicId: event.target.value,
-                        }))
-                      }
-                      disabled={Boolean(editingProgress) || topicsLoading}
-                      className="h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-900 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100 disabled:bg-stone-50 disabled:text-stone-400"
-                    >
-                      <option value="">
-                        {topicsLoading ? "Loading topics..." : "Select topic"}
-                      </option>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <label className="mb-1.5 block text-xs font-semibold text-stone-700">
+                  Started At
+                </label>
 
-                      {topics.map((topic) => (
-                        <option key={topic.id} value={topic.id}>
-                          {topic.subject?.name
-                            ? `${topic.subject.name} — ${topic.name}`
-                            : topic.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="mb-1.5 block text-xs font-semibold text-stone-700">
-                    Teacher
-                  </label>
-
-                  <select
-                    value={form.teacherId}
-                    onChange={(event) =>
-                      setForm((current) => ({
-                        ...current,
-                        teacherId: event.target.value,
-                      }))
-                    }
-                    className="h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-900 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
-                  >
-                    <option value="">Unassigned</option>
-
-                    {teachers.map((teacher) => (
-                      <option key={teacher.id} value={teacher.id}>
-                        {teacher.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="mb-1.5 block text-xs font-semibold text-stone-700">
-                    Status <span className="text-orange-500">*</span>
-                  </label>
-
-                  <select
-                    value={form.status}
-                    onChange={(event) =>
-                      setForm((current) => ({
-                        ...current,
-                        status: event.target.value as FormState["status"],
-                      }))
-                    }
-                    className="h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-900 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
-                  >
-                    <option value="NOT_STARTED">Not Started</option>
-                    <option value="IN_PROGRESS">In Progress</option>
-                    <option value="COMPLETED">Completed</option>
-                  </select>
-                </div>
-
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div>
-                    <label className="mb-1.5 block text-xs font-semibold text-stone-700">
-                      Started At
-                    </label>
-
-                    <input
-                      type="datetime-local"
-                      value={form.startedAt}
-                      onChange={(event) =>
-                        setForm((current) => ({
-                          ...current,
-                          startedAt: event.target.value,
-                        }))
-                      }
-                      className="h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-900 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="mb-1.5 block text-xs font-semibold text-stone-700">
-                      Completed At
-                    </label>
-
-                    <input
-                      type="datetime-local"
-                      value={form.completedAt}
-                      onChange={(event) =>
-                        setForm((current) => ({
-                          ...current,
-                          completedAt: event.target.value,
-                        }))
-                      }
-                      className="h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-900 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="mb-1.5 block text-xs font-semibold text-stone-700">
-                    Notes
-                  </label>
-
-                  <textarea
-                    value={form.notes}
-                    onChange={(event) =>
-                      setForm((current) => ({
-                        ...current,
-                        notes: event.target.value,
-                      }))
-                    }
-                    rows={4}
-                    placeholder="Add teaching notes or progress details..."
-                    className="w-full resize-none rounded-xl border border-stone-200 bg-white px-4 py-3 text-sm leading-relaxed text-stone-900 placeholder:text-stone-400 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
-                  />
-                </div>
+                <input
+                  type="datetime-local"
+                  value={form.startedAt}
+                  onChange={(event) =>
+                    setForm((current) => ({
+                      ...current,
+                      startedAt: event.target.value,
+                    }))
+                  }
+                  className="h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-900 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
+                />
               </div>
 
-              <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-                <button
-                  type="button"
-                  onClick={closeModal}
-                  disabled={saving}
-                  className="rounded-xl border border-stone-200 bg-white px-4 py-2.5 text-sm font-semibold text-stone-700 transition duration-200 hover:bg-stone-50 disabled:opacity-50"
-                >
-                  Cancel
-                </button>
+              <div>
+                <label className="mb-1.5 block text-xs font-semibold text-stone-700">
+                  Completed At
+                </label>
 
-                <button
-                  type="submit"
-                  disabled={saving}
-                  className="rounded-xl bg-orange-500 px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-orange-200 transition duration-200 hover:-translate-y-0.5 hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {saving
-                    ? "Saving..."
-                    : editingProgress
-                    ? "Update Progress"
-                    : "Create Progress"}
-                </button>
+                <input
+                  type="datetime-local"
+                  value={form.completedAt}
+                  onChange={(event) =>
+                    setForm((current) => ({
+                      ...current,
+                      completedAt: event.target.value,
+                    }))
+                  }
+                  className="h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-900 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
+                />
               </div>
-            </form>
+            </div>
+
+            <div>
+              <label className="mb-1.5 block text-xs font-semibold text-stone-700">
+                Notes
+              </label>
+
+              <textarea
+                value={form.notes}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    notes: event.target.value,
+                  }))
+                }
+                rows={4}
+                placeholder="Add teaching notes or progress details..."
+                className="w-full resize-none rounded-xl border border-stone-200 bg-white px-4 py-3 text-sm leading-relaxed text-stone-900 placeholder:text-stone-400 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
+              />
+            </div>
           </div>
-        </div>
-      )}
+        </form>
+      </Modal>
 
       {/* In-App Delete Confirmation Modal */}
-      {deleteItem && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-stone-950/45 p-4 lg:pl-72 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-3xl border border-stone-200/80 bg-white/95 p-6 shadow-2xl backdrop-blur-xl sm:p-7">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-red-100 text-xl font-bold text-red-600">
-              !
-            </div>
+      <Modal
+        isOpen={Boolean(deleteItem)}
+        onClose={closeDeleteModal}
+        title="Delete Teaching Progress?"
+        size="md"
+        footer={
+          <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end w-full">
+            <button
+              type="button"
+              onClick={closeDeleteModal}
+              disabled={deleting}
+              className="rounded-xl border border-stone-200 bg-white px-4 py-2.5 text-sm font-semibold text-stone-700 transition duration-200 hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Cancel
+            </button>
 
-            <h2 className="mt-4 text-xl font-bold tracking-tight text-stone-900">
-              Delete Teaching Progress?
-            </h2>
+            <button
+              type="button"
+              onClick={confirmDelete}
+              disabled={deleting}
+              className="rounded-xl bg-red-500 px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-red-200 transition duration-200 hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {deleting ? "Deleting..." : "Delete Record"}
+            </button>
+          </div>
+        }
+      >
+        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-red-100 text-xl font-bold text-red-600">
+          !
+        </div>
 
-            <p className="mt-2 text-sm leading-relaxed text-stone-500">
-              Are you sure you want to remove the teaching progress record for{" "}
-              <span className="font-semibold text-stone-800">
-                {deleteItem.topic?.name || "this topic"}
-              </span>{" "}
-              in batch{" "}
-              <span className="font-semibold text-stone-800">
-                {deleteItem.batch?.name || "this batch"}
-              </span>
-              ? This action cannot be undone.
-            </p>
+        <p className="mt-3 text-sm leading-relaxed text-stone-500">
+          Are you sure you want to remove the teaching progress record for{" "}
+          <span className="font-semibold text-stone-800">
+            {deleteItem?.topic?.name || "this topic"}
+          </span>{" "}
+          in batch{" "}
+          <span className="font-semibold text-stone-800">
+            {deleteItem?.batch?.name || "this batch"}
+          </span>
+          ? This action cannot be undone.
+        </p>
 
-            <div className="mt-4 rounded-xl border border-stone-200/70 bg-stone-50/70 p-4">
-              <div className="grid gap-2.5">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-stone-400">
-                    Topic
-                  </p>
-                  <p className="mt-0.5 text-sm font-medium text-stone-800">
-                    {deleteItem.topic?.name || "—"}
-                  </p>
-                </div>
+        {deleteItem && (
+          <div className="mt-4 rounded-xl border border-stone-200/70 bg-stone-50/70 p-4">
+            <div className="grid gap-2.5">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-stone-400">
+                  Topic
+                </p>
+                <p className="mt-0.5 text-sm font-medium text-stone-800">
+                  {deleteItem.topic?.name || "—"}
+                </p>
+              </div>
 
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-stone-400">
-                    Batch & Teacher
-                  </p>
-                  <p className="mt-0.5 text-sm font-medium text-stone-800">
-                    {deleteItem.batch?.name || "—"} • {deleteItem.teacher?.name || "Unassigned"}
-                  </p>
-                </div>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-stone-400">
+                  Batch & Teacher
+                </p>
+                <p className="mt-0.5 text-sm font-medium text-stone-800">
+                  {deleteItem.batch?.name || "—"} • {deleteItem.teacher?.name || "Unassigned"}
+                </p>
               </div>
             </div>
-
-            <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-              <button
-                type="button"
-                onClick={closeDeleteModal}
-                disabled={deleting}
-                className="rounded-xl border border-stone-200 bg-white px-4 py-2.5 text-sm font-semibold text-stone-700 transition duration-200 hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                Cancel
-              </button>
-
-              <button
-                type="button"
-                onClick={confirmDelete}
-                disabled={deleting}
-                className="rounded-xl bg-red-500 px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-red-200 transition duration-200 hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {deleting ? "Deleting..." : "Delete Record"}
-              </button>
-            </div>
           </div>
-        </div>
-      )}
+        )}
+      </Modal>
     </div>
   );
 }

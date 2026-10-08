@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 
 import { API_BASE } from "@/lib/api";
@@ -72,6 +73,7 @@ function formatDate(value?: string | null) {
 }
 
 export default function ExamsPage() {
+  const router = useRouter();
   const [exams, setExams] = useState<Exam[]>([]);
   const [schools, setSchools] = useState<School[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
@@ -97,16 +99,18 @@ export default function ExamsPage() {
     subjectId: "",
   });
 
-  const loadData = async () => {
+  const loadData = async (isInitial = false) => {
     const token = getToken();
 
     if (!token) {
-      window.location.href = "/login";
+      router.push("/login");
       return;
     }
 
-    setLoading(true);
-    setError("");
+    if (!isInitial) {
+      setLoading(true);
+      setError("");
+    }
 
     try {
       const [examsResponse, schoolsResponse, subjectsResponse] =
@@ -136,7 +140,7 @@ export default function ExamsPage() {
         subjectsResponse.status === 401
       ) {
         localStorage.removeItem("synaptix_token");
-        window.location.href = "/login";
+        router.push("/login");
         return;
       }
 
@@ -179,7 +183,16 @@ export default function ExamsPage() {
   };
 
   useEffect(() => {
-    loadData();
+    let ignore = false;
+    async function init() {
+      if (!ignore) {
+        await loadData(true);
+      }
+    }
+    init();
+    return () => {
+      ignore = true;
+    };
   }, []);
 
   const openCreateModal = () => {
@@ -224,7 +237,7 @@ export default function ExamsPage() {
     const token = getToken();
 
     if (!token) {
-      window.location.href = "/login";
+      router.push("/login");
       return;
     }
 
@@ -262,7 +275,7 @@ export default function ExamsPage() {
 
       if (response.status === 401) {
         localStorage.removeItem("synaptix_token");
-        window.location.href = "/login";
+        router.push("/login");
         return;
       }
 
@@ -298,7 +311,7 @@ export default function ExamsPage() {
     const token = getToken();
 
     if (!token) {
-      window.location.href = "/login";
+      router.push("/login");
       return;
     }
 
@@ -318,7 +331,7 @@ export default function ExamsPage() {
 
       if (response.status === 401) {
         localStorage.removeItem("synaptix_token");
-        window.location.href = "/login";
+        router.push("/login");
         return;
       }
 

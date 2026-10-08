@@ -79,25 +79,21 @@ export default function ImageCropModal({
    * Reset the editor whenever a new image/source
    * or saved crop state is supplied.
    */
-  useEffect(() => {
+  const [prevResetKey, setPrevResetKey] = useState(
+    () => `${image}-${initialCrop?.x}-${initialCrop?.y}-${initialZoom}`
+  );
+  const currentResetKey = `${image}-${initialCrop?.x}-${initialCrop?.y}-${initialZoom}`;
+  if (currentResetKey !== prevResetKey) {
+    setPrevResetKey(currentResetKey);
     setCrop(
       initialCrop ?? {
         x: 0,
         y: 0,
-      },
+      }
     );
-
-    setZoom(
-      initialZoom ?? 1,
-    );
-
+    setZoom(initialZoom ?? 1);
     setCroppedAreaPixels(null);
-  }, [
-    image,
-    initialCrop?.x,
-    initialCrop?.y,
-    initialZoom,
-  ]);
+  }
 
   /*
    * Load the image through a local object URL.

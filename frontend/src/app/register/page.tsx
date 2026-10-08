@@ -2,10 +2,12 @@
 
 import { FormEvent, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { API_BASE } from "@/lib/api";
 import { EyeIcon } from "@/components/EyeIcon";
 
 export default function RegisterPage() {
+  const router = useRouter();
   const [instituteName, setInstituteName] = useState("");
   const [adminName, setAdminName] = useState("");
   const [email, setEmail] = useState("");
@@ -66,7 +68,7 @@ export default function RegisterPage() {
       );
 
       setTimeout(() => {
-        window.location.href = "/login";
+        router.push("/login");
       }, 1500);
     } catch {
       setError(

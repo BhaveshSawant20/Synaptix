@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 
 type Subject = {
@@ -19,11 +19,6 @@ type Topic = {
   name: string;
   description?: string | null;
   orderIndex?: number | null;
-};
-
-type School = {
-  id: string;
-  name: string;
 };
 
 type Standard = {
@@ -51,12 +46,15 @@ function getToken() {
   return localStorage.getItem("synaptix_token") || "";
 }
 
-async function parseResponse(response: Response) {
+async function parseResponse(
+  response: Response,
+  router: { push: (url: string) => void }
+) {
   const data = await response.json().catch(() => ({}));
 
   if (response.status === 401) {
     localStorage.removeItem("synaptix_token");
-    window.location.href = "/login";
+    router.push("/login");
     throw new Error("Authentication required.");
   }
 
@@ -85,7 +83,6 @@ export default function SubjectDetailsPage() {
 
   const [subject, setSubject] = useState<Subject | null>(null);
   const [topics, setTopics] = useState<Topic[]>([]);
-  const [schools, setSchools] = useState<School[]>([]);
   const [standards, setStandards] = useState<Standard[]>([]);
   const [exams, setExams] = useState<Exam[]>([]);
 
@@ -99,17 +96,19 @@ export default function SubjectDetailsPage() {
     code: "",
   });
 
-  async function loadSubjectDetails() {
+  async function loadSubjectDetails(isInitial = false) {
     if (!subjectId) return;
 
     try {
-      setLoading(true);
-      setError("");
+      if (!isInitial) {
+        setLoading(true);
+        setError("");
+      }
 
       const token = getToken();
 
       if (!token) {
-        window.location.href = "/login";
+        router.push("/login");
         return;
       }
 
@@ -122,7 +121,7 @@ export default function SubjectDetailsPage() {
         }
       );
 
-      const subjectData = await parseResponse(subjectResponse);
+      const subjectData = await parseResponse(subjectResponse, router);
       setSubject(subjectData.subject);
 
       const [
@@ -153,22 +152,16 @@ export default function SubjectDetailsPage() {
         }),
       ]);
 
-      const topicsData = await parseResponse(topicsResponse);
-      const schoolsData = await parseResponse(schoolsResponse);
-      const standardsData = await parseResponse(standardsResponse);
-      const examsData = await parseResponse(examsResponse);
+      const topicsData = await parseResponse(topicsResponse, router);
+      await parseResponse(schoolsResponse, router);
+      const standardsData = await parseResponse(standardsResponse, router);
+      const examsData = await parseResponse(examsResponse, router);
 
       setTopics(
         Array.isArray(topicsData.topics)
           ? topicsData.topics.filter(
               (topic: Topic) => topic.subjectId === subjectId
             )
-          : []
-      );
-
-      setSchools(
-        Array.isArray(schoolsData.schools)
-          ? schoolsData.schools
           : []
       );
 
@@ -197,7 +190,16 @@ export default function SubjectDetailsPage() {
   }
 
   useEffect(() => {
-    loadSubjectDetails();
+    let ignore = false;
+    async function init() {
+      if (!ignore && subjectId) {
+        await loadSubjectDetails(true);
+      }
+    }
+    init();
+    return () => {
+      ignore = true;
+    };
   }, [subjectId]);
 
   function openEditModal() {
@@ -227,7 +229,7 @@ export default function SubjectDetailsPage() {
       const token = getToken();
 
       if (!token) {
-        window.location.href = "/login";
+        router.push("/login");
         return;
       }
 
@@ -243,7 +245,7 @@ export default function SubjectDetailsPage() {
         }),
       });
 
-      const data = await parseResponse(response);
+      const data = await parseResponse(response, router);
 
       setSubject(data.subject);
       setIsEditModalOpen(false);

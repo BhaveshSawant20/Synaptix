@@ -69,17 +69,19 @@ export default function StandardDetailsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  async function loadData() {
+  async function loadData(isInitial = false) {
     const token = getToken();
 
     if (!token) {
-      window.location.href = "/login";
+      router.push("/login");
       return;
     }
 
     try {
-      setLoading(true);
-      setError("");
+      if (!isInitial) {
+        setLoading(true);
+        setError("");
+      }
 
       const headers = {
         Authorization: `Bearer ${token}`,
@@ -107,7 +109,7 @@ export default function StandardDetailsPage() {
         studentsResponse.status === 401
       ) {
         localStorage.removeItem("synaptix_token");
-        window.location.href = "/login";
+        router.push("/login");
         return;
       }
 
@@ -178,9 +180,16 @@ export default function StandardDetailsPage() {
   }
 
   useEffect(() => {
-    if (standardId) {
-      loadData();
+    let ignore = false;
+    async function init() {
+      if (!ignore && standardId) {
+        await loadData(true);
+      }
     }
+    init();
+    return () => {
+      ignore = true;
+    };
   }, [standardId]);
 
   const studentCount = useMemo(
@@ -242,7 +251,7 @@ export default function StandardDetailsPage() {
 
             <button
               type="button"
-              onClick={loadData}
+              onClick={() => loadData()}
               className="mt-5 rounded-xl bg-red-600 px-4 py-2 text-xs font-semibold text-white shadow-sm transition duration-200 hover:bg-red-700 active:scale-95"
             >
               Retry

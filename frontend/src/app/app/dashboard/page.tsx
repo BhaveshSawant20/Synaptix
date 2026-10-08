@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 import { API_BASE_URL } from "@/lib/api";
@@ -197,6 +198,7 @@ function SectionHeader({
 }
 
 export default function DashboardPage() {
+  const router = useRouter();
   const [overview, setOverview] = useState<DashboardOverview | null>(null);
   const [exams, setExams] = useState<Exam[]>([]);
   const [attendance, setAttendance] = useState<AttendanceSummary | null>(null);
@@ -213,7 +215,7 @@ export default function DashboardPage() {
       const token = getToken();
 
       if (!token) {
-        window.location.href = "/login";
+        router.push("/login");
         return;
       }
 
@@ -269,7 +271,7 @@ export default function DashboardPage() {
 
         if (responses.some((response) => response.status === 401)) {
           localStorage.removeItem("synaptix_token");
-          window.location.href = "/login";
+          router.push("/login");
           return;
         }
 

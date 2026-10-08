@@ -186,7 +186,7 @@ export default function AssessmentDetailsPage() {
     assessmentDate: "",
   });
 
-  const loadAssessment = async () => {
+  const loadAssessment = async (isInitial = false) => {
     const token = getToken();
 
     if (!token) {
@@ -195,8 +195,10 @@ export default function AssessmentDetailsPage() {
     }
 
     try {
-      setLoading(true);
-      setError("");
+      if (!isInitial) {
+        setLoading(true);
+        setError("");
+      }
 
       const response = await fetch(
         `${API_BASE}/assessments/${assessmentId}`,
@@ -267,8 +269,16 @@ export default function AssessmentDetailsPage() {
   useEffect(() => {
     if (!assessmentId) return;
 
-    loadAssessment();
-    loadBatches();
+    let ignore = false;
+    async function init() {
+      if (!ignore) {
+        await Promise.all([loadAssessment(true), loadBatches()]);
+      }
+    }
+    init();
+    return () => {
+      ignore = true;
+    };
   }, [assessmentId]);
 
   const openEditModal = () => {
@@ -503,7 +513,7 @@ export default function AssessmentDetailsPage() {
 
             <button
               type="button"
-              onClick={loadAssessment}
+              onClick={() => loadAssessment()}
               className="mt-6 inline-flex items-center justify-center rounded-xl bg-orange-500 px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-orange-200 transition duration-200 hover:-translate-y-0.5 hover:bg-orange-600 active:translate-y-0"
             >
               Try Again

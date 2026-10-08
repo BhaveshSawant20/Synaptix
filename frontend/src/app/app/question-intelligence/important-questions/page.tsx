@@ -6,6 +6,7 @@ import {
   useMemo,
   useState,
 } from "react";
+import { useRouter } from "next/navigation";
 
 type ImportantQuestion = {
   id: string;
@@ -45,6 +46,7 @@ function getToken() {
 }
 
 export default function ImportantQuestionsPage() {
+  const router = useRouter();
   const [questions, setQuestions] = useState<ImportantQuestion[]>([]);
   const [form, setForm] = useState<QuestionForm>(emptyForm);
   const [editingQuestion, setEditingQuestion] = useState<ImportantQuestion | null>(null);
@@ -61,17 +63,19 @@ export default function ImportantQuestionsPage() {
   const [error, setError] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
 
-  async function loadQuestions() {
+  async function loadQuestions(isInitial = false) {
     const token = getToken();
 
     if (!token) {
-      window.location.href = "/login";
+      router.push("/login");
       return;
     }
 
     try {
-      setLoading(true);
-      setError("");
+      if (!isInitial) {
+        setLoading(true);
+        setError("");
+      }
 
       const response = await fetch(`${API_BASE}/important-questions`, {
         headers: {
@@ -81,7 +85,7 @@ export default function ImportantQuestionsPage() {
 
       if (response.status === 401) {
         localStorage.removeItem("synaptix_token");
-        window.location.href = "/login";
+        router.push("/login");
         return;
       }
 
@@ -116,7 +120,16 @@ export default function ImportantQuestionsPage() {
   }
 
   useEffect(() => {
-    loadQuestions();
+    let ignore = false;
+    async function init() {
+      if (!ignore) {
+        await loadQuestions(true);
+      }
+    }
+    init();
+    return () => {
+      ignore = true;
+    };
   }, []);
 
   const subjects = useMemo(() => {
@@ -228,7 +241,7 @@ export default function ImportantQuestionsPage() {
     const token = getToken();
 
     if (!token) {
-      window.location.href = "/login";
+      router.push("/login");
       return;
     }
 
@@ -274,7 +287,7 @@ export default function ImportantQuestionsPage() {
 
       if (response.status === 401) {
         localStorage.removeItem("synaptix_token");
-        window.location.href = "/login";
+        router.push("/login");
         return;
       }
 
@@ -314,7 +327,7 @@ export default function ImportantQuestionsPage() {
     const token = getToken();
 
     if (!token) {
-      window.location.href = "/login";
+      router.push("/login");
       return;
     }
 
@@ -334,7 +347,7 @@ export default function ImportantQuestionsPage() {
 
       if (response.status === 401) {
         localStorage.removeItem("synaptix_token");
-        window.location.href = "/login";
+        router.push("/login");
         return;
       }
 

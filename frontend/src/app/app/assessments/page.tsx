@@ -1,7 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import Modal from "@/app/app/components/Modal";
 
 import { API } from "@/lib/api";
 
@@ -60,6 +62,7 @@ function formatDate(value: string | null) {
 }
 
 export default function AssessmentsPage() {
+  const router = useRouter();
   const [assessments, setAssessments] = useState<Assessment[]>([]);
   const [batches, setBatches] = useState<Batch[]>([]);
   const [search, setSearch] = useState("");
@@ -74,17 +77,15 @@ export default function AssessmentsPage() {
   const [editing, setEditing] = useState<Assessment | null>(null);
   const [deleteAssessment, setDeleteAssessment] = useState<Assessment | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm);
+  const [currentTimestamp, setCurrentTimestamp] = useState<number>(0);
 
   async function loadData() {
     const token = getToken();
 
     if (!token) {
-      window.location.href = "/login";
+      router.push("/login");
       return;
     }
-
-    setLoading(true);
-    setError("");
 
     try {
       const [assessmentRes, batchRes] = await Promise.all([
@@ -98,7 +99,7 @@ export default function AssessmentsPage() {
 
       if (assessmentRes.status === 401 || batchRes.status === 401) {
         localStorage.removeItem("synaptix_token");
-        window.location.href = "/login";
+        router.push("/login");
         return;
       }
 
@@ -122,6 +123,7 @@ export default function AssessmentsPage() {
       setBatches(
         Array.isArray(batchData.batches) ? batchData.batches : [],
       );
+      setCurrentTimestamp(Date.now());
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Failed to load assessments",
@@ -132,7 +134,72 @@ export default function AssessmentsPage() {
   }
 
   useEffect(() => {
-    loadData();
+    let ignore = false;
+
+    async function init() {
+      const token = getToken();
+
+      if (!token) {
+        router.push("/login");
+        return;
+      }
+
+      try {
+        const [assessmentRes, batchRes] = await Promise.all([
+          fetch(`${API}/assessments`, {
+            headers: authHeaders(),
+          }),
+          fetch(`${API}/batches`, {
+            headers: authHeaders(),
+          }),
+        ]);
+
+        if (assessmentRes.status === 401 || batchRes.status === 401) {
+          localStorage.removeItem("synaptix_token");
+          router.push("/login");
+          return;
+        }
+
+        const assessmentData = await assessmentRes.json();
+        const batchData = await batchRes.json();
+
+        if (!assessmentRes.ok) {
+          throw new Error(
+            assessmentData.message || "Failed to load assessments",
+          );
+        }
+
+        if (!batchRes.ok) {
+          throw new Error(batchData.message || "Failed to load batches");
+        }
+
+        if (!ignore) {
+          setAssessments(
+            Array.isArray(assessmentData.data) ? assessmentData.data : [],
+          );
+          setBatches(
+            Array.isArray(batchData.batches) ? batchData.batches : [],
+          );
+          setCurrentTimestamp(Date.now());
+        }
+      } catch (err) {
+        if (!ignore) {
+          setError(
+            err instanceof Error ? err.message : "Failed to load assessments",
+          );
+        }
+      } finally {
+        if (!ignore) {
+          setLoading(false);
+        }
+      }
+    }
+
+    init();
+
+    return () => {
+      ignore = true;
+    };
   }, []);
 
   const filtered = useMemo(() => {
@@ -159,8 +226,8 @@ export default function AssessmentsPage() {
 
     const upcoming = assessments.filter(
       (a) =>
-        a.assessmentDate &&
-        new Date(a.assessmentDate).getTime() >= Date.now(),
+        Boolean(a.assessmentDate) &&
+        (currentTimestamp === 0 || new Date(a.assessmentDate!).getTime() >= currentTimestamp),
     ).length;
 
     const records = assessments.reduce(
@@ -174,7 +241,7 @@ export default function AssessmentsPage() {
       totalMarks,
       records,
     };
-  }, [assessments]);
+  }, [assessments, currentTimestamp]);
 
   function openCreate() {
     setEditing(null);
@@ -262,7 +329,7 @@ export default function AssessmentsPage() {
 
       if (res.status === 401) {
         localStorage.removeItem("synaptix_token");
-        window.location.href = "/login";
+        router.push("/login");
         return;
       }
 
@@ -308,7 +375,7 @@ export default function AssessmentsPage() {
 
       if (res.status === 401) {
         localStorage.removeItem("synaptix_token");
-        window.location.href = "/login";
+        router.push("/login");
         return;
       }
 
@@ -651,186 +718,190 @@ export default function AssessmentsPage() {
       </div>
 
       {/* Edit / Create Modal */}
-      {modalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-950/40 p-4 backdrop-blur-sm lg:pl-72">
-          <div className="max-h-[92vh] w-full max-w-xl overflow-y-auto rounded-3xl border border-stone-200/80 bg-white/95 p-6 shadow-2xl backdrop-blur-xl sm:p-7">
-            <div className="mb-5 flex items-start justify-between border-b border-stone-200/70 pb-4">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-orange-600">
-                  {editing ? "Edit Record" : "New Record"}
-                </p>
+      <Modal
+        isOpen={modalOpen}
+        onClose={closeModal}
+        badge={editing ? "Edit Record" : "New Record"}
+        title={editing ? "Edit Assessment" : "Add Assessment"}
+        maxWidth="xl"
+        footer={
+          <>
+            <button
+              type="button"
+              onClick={closeModal}
+              className="rounded-xl border border-stone-200 bg-white px-4 py-2.5 text-sm font-semibold text-stone-700 transition duration-200 hover:bg-stone-50"
+            >
+              Cancel
+            </button>
 
-                <h2 className="mt-1 text-xl font-bold tracking-tight text-stone-900">
-                  {editing ? "Edit Assessment" : "Add Assessment"}
-                </h2>
-              </div>
+            <button
+              disabled={saving}
+              type="submit"
+              form="assessment-form"
+              className="rounded-xl bg-orange-500 px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-orange-200 transition duration-200 hover:-translate-y-0.5 hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {saving
+                ? "Saving..."
+                : editing
+                  ? "Update Assessment"
+                  : "Create Assessment"}
+            </button>
+          </>
+        }
+      >
+        {error && (
+          <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+            {error}
+          </div>
+        )}
 
-              <button
-                onClick={closeModal}
-                className="flex h-9 w-9 items-center justify-center rounded-xl border border-stone-200 bg-white text-lg text-stone-500 transition hover:border-orange-200 hover:text-orange-600"
+        <form id="assessment-form" onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="mb-1.5 block text-xs font-semibold text-stone-700">
+              Assessment Name <span className="text-orange-500">*</span>
+            </label>
+
+            <input
+              required
+              value={form.name}
+              onChange={(e) =>
+                setForm({
+                  ...form,
+                  name: e.target.value,
+                })
+              }
+              placeholder="e.g. Physics Unit Test 1"
+              className="h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-900 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
+            />
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <label className="mb-1.5 block text-xs font-semibold text-stone-700">
+                Batch
+              </label>
+
+              <select
+                value={form.batchId}
+                onChange={(e) =>
+                  setForm({
+                    ...form,
+                    batchId: e.target.value,
+                  })
+                }
+                className="h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-900 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
               >
-                ×
-              </button>
+                <option value="">No batch</option>
+                {batches.map((batch) => (
+                  <option key={batch.id} value={batch.id}>
+                    {batch.name}
+                  </option>
+                ))}
+              </select>
             </div>
 
-            {error && (
-              <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
-                {error}
-              </div>
-            )}
+            <div>
+              <label className="mb-1.5 block text-xs font-semibold text-stone-700">
+                Subject
+              </label>
 
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <label className="mb-1.5 block text-xs font-semibold text-stone-700">
-                  Assessment Name <span className="text-orange-500">*</span>
-                </label>
-
-                <input
-                  required
-                  value={form.name}
-                  onChange={(e) =>
-                    setForm({
-                      ...form,
-                      name: e.target.value,
-                    })
-                  }
-                  placeholder="e.g. Physics Unit Test 1"
-                  className="h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-900 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
-                />
-              </div>
-
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div>
-                  <label className="mb-1.5 block text-xs font-semibold text-stone-700">
-                    Batch
-                  </label>
-
-                  <select
-                    value={form.batchId}
-                    onChange={(e) =>
-                      setForm({
-                        ...form,
-                        batchId: e.target.value,
-                      })
-                    }
-                    className="h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-900 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
-                  >
-                    <option value="">No batch</option>
-                    {batches.map((batch) => (
-                      <option key={batch.id} value={batch.id}>
-                        {batch.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="mb-1.5 block text-xs font-semibold text-stone-700">
-                    Subject
-                  </label>
-
-                  <input
-                    value={form.subject}
-                    onChange={(e) =>
-                      setForm({
-                        ...form,
-                        subject: e.target.value,
-                      })
-                    }
-                    placeholder="e.g. Physics"
-                    className="h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-900 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
-                  />
-                </div>
-              </div>
-
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div>
-                  <label className="mb-1.5 block text-xs font-semibold text-stone-700">
-                    Total Marks
-                  </label>
-
-                  <input
-                    type="number"
-                    min="1"
-                    step="1"
-                    value={form.totalMarks}
-                    onChange={(e) =>
-                      setForm({
-                        ...form,
-                        totalMarks: e.target.value,
-                      })
-                    }
-                    placeholder="100"
-                    className="h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-900 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
-                  />
-                </div>
-
-                <div>
-                  <label className="mb-1.5 block text-xs font-semibold text-stone-700">
-                    Assessment Date
-                  </label>
-
-                  <input
-                    type="date"
-                    value={form.assessmentDate}
-                    onChange={(e) =>
-                      setForm({
-                        ...form,
-                        assessmentDate: e.target.value,
-                      })
-                    }
-                    className="h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-900 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
-                  />
-                </div>
-              </div>
-
-              <div className="flex flex-col-reverse gap-3 pt-3 sm:flex-row sm:justify-end">
-                <button
-                  type="button"
-                  onClick={closeModal}
-                  className="rounded-xl border border-stone-200 bg-white px-4 py-2.5 text-sm font-semibold text-stone-700 transition duration-200 hover:bg-stone-50"
-                >
-                  Cancel
-                </button>
-
-                <button
-                  disabled={saving}
-                  type="submit"
-                  className="rounded-xl bg-orange-500 px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-orange-200 transition duration-200 hover:-translate-y-0.5 hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {saving
-                    ? "Saving..."
-                    : editing
-                      ? "Update Assessment"
-                      : "Create Assessment"}
-                </button>
-              </div>
-            </form>
+              <input
+                value={form.subject}
+                onChange={(e) =>
+                  setForm({
+                    ...form,
+                    subject: e.target.value,
+                  })
+                }
+                placeholder="e.g. Physics"
+                className="h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-900 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
+              />
+            </div>
           </div>
-        </div>
-      )}
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <label className="mb-1.5 block text-xs font-semibold text-stone-700">
+                Total Marks
+              </label>
+
+              <input
+                type="number"
+                min="1"
+                step="1"
+                value={form.totalMarks}
+                onChange={(e) =>
+                  setForm({
+                    ...form,
+                    totalMarks: e.target.value,
+                  })
+                }
+                placeholder="100"
+                className="h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-900 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
+              />
+            </div>
+
+            <div>
+              <label className="mb-1.5 block text-xs font-semibold text-stone-700">
+                Assessment Date
+              </label>
+
+              <input
+                type="date"
+                value={form.assessmentDate}
+                onChange={(e) =>
+                  setForm({
+                    ...form,
+                    assessmentDate: e.target.value,
+                  })
+                }
+                className="h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-900 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
+              />
+            </div>
+          </div>
+        </form>
+      </Modal>
 
       {/* In-App Delete Confirmation Modal */}
-      {deleteAssessment && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-stone-950/45 p-4 backdrop-blur-sm lg:pl-72">
-          <div className="w-full max-w-md rounded-3xl border border-stone-200/80 bg-white/95 p-6 shadow-2xl backdrop-blur-xl sm:p-7">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-red-100 text-xl font-bold text-red-600">
-              !
-            </div>
+      <Modal
+        isOpen={Boolean(deleteAssessment)}
+        onClose={closeDeleteModal}
+        title="Delete Assessment?"
+        description="All linked student performance records for this test will be impacted. This action cannot be undone."
+        maxWidth="md"
+        footer={
+          <>
+            <button
+              type="button"
+              onClick={closeDeleteModal}
+              disabled={deleting}
+              className="rounded-xl border border-stone-200 bg-white px-4 py-2.5 text-sm font-semibold text-stone-700 transition duration-200 hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Cancel
+            </button>
 
-            <h2 className="mt-4 text-xl font-bold tracking-tight text-stone-900">
-              Delete Assessment?
-            </h2>
-
-            <p className="mt-2 text-sm leading-relaxed text-stone-500">
+            <button
+              type="button"
+              onClick={confirmDelete}
+              disabled={deleting}
+              className="rounded-xl bg-red-500 px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-red-200 transition duration-200 hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {deleting ? "Deleting..." : "Delete Assessment"}
+            </button>
+          </>
+        }
+      >
+        {deleteAssessment && (
+          <div className="space-y-4">
+            <p className="text-sm leading-relaxed text-stone-600">
               Are you sure you want to remove{" "}
               <span className="font-semibold text-stone-800">
                 {deleteAssessment.name}
               </span>
-              ? All linked student performance records for this test will be impacted. This action cannot be undone.
+              ?
             </p>
 
-            <div className="mt-4 rounded-xl border border-stone-200/70 bg-stone-50/70 p-4">
+            <div className="rounded-xl border border-stone-200/70 bg-stone-50/70 p-4">
               <div className="grid gap-2">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-[0.16em] text-stone-400">
@@ -851,29 +922,9 @@ export default function AssessmentsPage() {
                 </div>
               </div>
             </div>
-
-            <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-              <button
-                type="button"
-                onClick={closeDeleteModal}
-                disabled={deleting}
-                className="rounded-xl border border-stone-200 bg-white px-4 py-2.5 text-sm font-semibold text-stone-700 transition duration-200 hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                Cancel
-              </button>
-
-              <button
-                type="button"
-                onClick={confirmDelete}
-                disabled={deleting}
-                className="rounded-xl bg-red-500 px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-red-200 transition duration-200 hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {deleting ? "Deleting..." : "Delete Assessment"}
-              </button>
-            </div>
           </div>
-        </div>
-      )}
+        )}
+      </Modal>
     </div>
   );
 }

@@ -2,10 +2,12 @@
 
 import { FormEvent, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { API_BASE } from "@/lib/api";
 import { EyeIcon } from "@/components/EyeIcon";
 
 export default function LoginPage() {
+  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
@@ -44,7 +46,7 @@ export default function LoginPage() {
 
       localStorage.setItem("synaptix_token", data.token);
 
-      window.location.href = "/app/dashboard";
+      router.push("/app/dashboard");
     } catch {
       setError(
         "Unable to connect to Synaptix server. Please make sure the backend is running.",

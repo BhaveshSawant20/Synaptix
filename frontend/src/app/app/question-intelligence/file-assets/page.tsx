@@ -8,6 +8,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { useRouter } from "next/navigation";
 
 interface FileAsset {
   id: string;
@@ -77,6 +78,7 @@ function getFileLabel(file: FileAsset) {
 }
 
 export default function FileAssetsPage() {
+  const router = useRouter();
   const [files, setFiles] = useState<FileAsset[]>([]);
 
   const [search, setSearch] = useState("");
@@ -125,17 +127,19 @@ export default function FileAssetsPage() {
 
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  async function loadFiles() {
+  async function loadFiles(isInitial = false) {
     const token = getToken();
 
     if (!token) {
-      window.location.href = "/login";
+      router.push("/login");
       return;
     }
 
     try {
-      setLoading(true);
-      setError("");
+      if (!isInitial) {
+        setLoading(true);
+        setError("");
+      }
 
       const response = await fetch(`${API_BASE}/file-assets`, {
         headers: {
@@ -145,7 +149,7 @@ export default function FileAssetsPage() {
 
       if (response.status === 401) {
         localStorage.removeItem("synaptix_token");
-        window.location.href = "/login";
+        router.push("/login");
         return;
       }
 
@@ -172,7 +176,16 @@ export default function FileAssetsPage() {
   }
 
   useEffect(() => {
-    loadFiles();
+    let ignore = false;
+    async function init() {
+      if (!ignore) {
+        await loadFiles(true);
+      }
+    }
+    init();
+    return () => {
+      ignore = true;
+    };
   }, []);
 
   const fileTypes = useMemo(() => {
@@ -293,7 +306,7 @@ export default function FileAssetsPage() {
     const token = getToken();
 
     if (!token) {
-      window.location.href = "/login";
+      router.push("/login");
       return;
     }
 
@@ -323,7 +336,7 @@ export default function FileAssetsPage() {
 
       if (response.status === 401) {
         localStorage.removeItem("synaptix_token");
-        window.location.href = "/login";
+        router.push("/login");
         return;
       }
 
@@ -475,7 +488,7 @@ export default function FileAssetsPage() {
     const token = getToken();
 
     if (!token) {
-      window.location.href = "/login";
+      router.push("/login");
       return;
     }
 
@@ -495,7 +508,7 @@ export default function FileAssetsPage() {
 
       if (response.status === 401) {
         localStorage.removeItem("synaptix_token");
-        window.location.href = "/login";
+        router.push("/login");
         return;
       }
 

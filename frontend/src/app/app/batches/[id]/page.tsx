@@ -221,16 +221,18 @@ function getDayName(dayOfWeek?: number | null) {
   return DAYS.find((day) => Number(day.value) === dayOfWeek)?.label || "Unknown";
 }
 
-function normalizeScheduleList(data: any): TimetableSchedule[] {
-  if (Array.isArray(data?.schedules)) return data.schedules;
-  if (Array.isArray(data?.batchSchedules)) return data.batchSchedules;
-  if (Array.isArray(data?.data)) return data.data;
+function normalizeScheduleList(data: unknown): TimetableSchedule[] {
+  const record = data as { schedules?: TimetableSchedule[]; batchSchedules?: TimetableSchedule[]; data?: TimetableSchedule[] } | null | undefined;
+  if (Array.isArray(record?.schedules)) return record.schedules;
+  if (Array.isArray(record?.batchSchedules)) return record.batchSchedules;
+  if (Array.isArray(record?.data)) return record.data;
   return [];
 }
 
-function normalizeSubjectList(data: any): Subject[] {
-  if (Array.isArray(data?.subjects)) return data.subjects;
-  if (Array.isArray(data?.data)) return data.data;
+function normalizeSubjectList(data: unknown): Subject[] {
+  const record = data as { subjects?: Subject[]; data?: Subject[] } | null | undefined;
+  if (Array.isArray(record?.subjects)) return record.subjects;
+  if (Array.isArray(record?.data)) return record.data;
   return [];
 }
 
@@ -340,7 +342,7 @@ export default function BatchDetailsPage() {
     const token = getToken();
 
     if (!token) {
-      window.location.href = "/login";
+      router.push("/login");
       return;
     }
 
@@ -374,7 +376,7 @@ export default function BatchDetailsPage() {
 
       if (response.status === 401) {
         localStorage.removeItem("synaptix_token");
-        window.location.href = "/login";
+        router.push("/login");
         return;
       }
 
@@ -400,7 +402,7 @@ export default function BatchDetailsPage() {
     const token = getToken();
 
     if (!token) {
-      window.location.href = "/login";
+      router.push("/login");
       return;
     }
 
@@ -426,7 +428,7 @@ export default function BatchDetailsPage() {
 
       if (response.status === 401) {
         localStorage.removeItem("synaptix_token");
-        window.location.href = "/login";
+        router.push("/login");
         return;
       }
 
@@ -464,7 +466,7 @@ export default function BatchDetailsPage() {
     const token = getToken();
 
     if (!token) {
-      window.location.href = "/login";
+      router.push("/login");
       return;
     }
 
@@ -478,7 +480,7 @@ export default function BatchDetailsPage() {
 
       if (response.status === 401) {
         localStorage.removeItem("synaptix_token");
-        window.location.href = "/login";
+        router.push("/login");
         return;
       }
 
@@ -498,7 +500,7 @@ export default function BatchDetailsPage() {
     const token = getToken();
 
     if (!token) {
-      window.location.href = "/login";
+      router.push("/login");
       return;
     }
 
@@ -541,7 +543,7 @@ export default function BatchDetailsPage() {
         assessmentsResponse.status === 401
       ) {
         localStorage.removeItem("synaptix_token");
-        window.location.href = "/login";
+        router.push("/login");
         return;
       }
 
@@ -604,9 +606,23 @@ export default function BatchDetailsPage() {
   }
 
   useEffect(() => {
-    loadBatchDetails();
-    loadSchedules();
-    loadSubjects();
+    let ignore = false;
+
+    async function init() {
+      if (!ignore) {
+        await Promise.all([
+          loadBatchDetails(),
+          loadSchedules(),
+          loadSubjects(),
+        ]);
+      }
+    }
+
+    init();
+
+    return () => {
+      ignore = true;
+    };
   }, [batchId]);
 
   const students = batch?.students || [];
@@ -696,7 +712,7 @@ export default function BatchDetailsPage() {
     const token = getToken();
 
     if (!token) {
-      window.location.href = "/login";
+      router.push("/login");
       return;
     }
 
@@ -759,7 +775,7 @@ export default function BatchDetailsPage() {
 
       if (response.status === 401) {
         localStorage.removeItem("synaptix_token");
-        window.location.href = "/login";
+        router.push("/login");
         return;
       }
 
@@ -799,7 +815,7 @@ export default function BatchDetailsPage() {
     const token = getToken();
 
     if (!token) {
-      window.location.href = "/login";
+      router.push("/login");
       return;
     }
 
@@ -819,7 +835,7 @@ export default function BatchDetailsPage() {
 
       if (response.status === 401) {
         localStorage.removeItem("synaptix_token");
-        window.location.href = "/login";
+        router.push("/login");
         return;
       }
 
@@ -848,7 +864,7 @@ export default function BatchDetailsPage() {
 
     const token = getToken();
     if (!token) {
-      window.location.href = "/login";
+      router.push("/login");
       return;
     }
 
@@ -866,7 +882,7 @@ export default function BatchDetailsPage() {
 
       if (response.status === 401) {
         localStorage.removeItem("synaptix_token");
-        window.location.href = "/login";
+        router.push("/login");
         return;
       }
 

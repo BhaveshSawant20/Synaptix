@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 
 import { API_URL } from "@/lib/api";
 
@@ -125,6 +126,7 @@ function SummaryCard({
 }
 
 export default function AttendancePage() {
+  const router = useRouter();
   const [attendance, setAttendance] = useState<Attendance[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
 
@@ -159,7 +161,7 @@ export default function AttendancePage() {
 
     if (response.status === 401) {
       localStorage.removeItem("synaptix_token");
-      window.location.href = "/login";
+      router.push("/login");
       return;
     }
 
@@ -179,7 +181,7 @@ export default function AttendancePage() {
 
     if (response.status === 401) {
       localStorage.removeItem("synaptix_token");
-      window.location.href = "/login";
+      router.push("/login");
       return;
     }
 
@@ -192,15 +194,17 @@ export default function AttendancePage() {
     setAttendance(data.data || []);
   }
 
-  async function loadInitialData() {
+  async function loadInitialData(isInitial = false) {
     if (!getToken()) {
-      window.location.href = "/login";
+      router.push("/login");
       return;
     }
 
     try {
-      setLoading(true);
-      setError("");
+      if (!isInitial) {
+        setLoading(true);
+        setError("");
+      }
 
       await Promise.all([loadStudents(), loadAttendance()]);
     } catch (err) {
@@ -215,7 +219,16 @@ export default function AttendancePage() {
   }
 
   useEffect(() => {
-    loadInitialData();
+    let ignore = false;
+    async function init() {
+      if (!ignore) {
+        await loadInitialData(true);
+      }
+    }
+    init();
+    return () => {
+      ignore = true;
+    };
   }, []);
 
   const schools = useMemo(() => {
@@ -468,7 +481,7 @@ export default function AttendancePage() {
 
       if (response.status === 401) {
         localStorage.removeItem("synaptix_token");
-        window.location.href = "/login";
+        router.push("/login");
         return;
       }
 
@@ -515,7 +528,7 @@ export default function AttendancePage() {
 
       if (response.status === 401) {
         localStorage.removeItem("synaptix_token");
-        window.location.href = "/login";
+        router.push("/login");
         return;
       }
 

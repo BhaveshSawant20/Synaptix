@@ -56,15 +56,17 @@ export default function SubjectsPage() {
     return sortRecords(base, sortBy, (s) => s.name, (s) => s.createdAt);
   }, [subjects, search, sortBy]);
 
-  async function loadSubjects() {
+  async function loadSubjects(isInitial = false) {
     try {
-      setLoading(true);
-      setError("");
+      if (!isInitial) {
+        setLoading(true);
+        setError("");
+      }
 
       const token = localStorage.getItem("synaptix_token");
 
       if (!token) {
-        window.location.href = "/login";
+        router.push("/login");
         return;
       }
 
@@ -78,7 +80,7 @@ export default function SubjectsPage() {
 
       if (response.status === 401) {
         localStorage.removeItem("synaptix_token");
-        window.location.href = "/login";
+        router.push("/login");
         return;
       }
 
@@ -97,7 +99,16 @@ export default function SubjectsPage() {
   }
 
   useEffect(() => {
-    loadSubjects();
+    let ignore = false;
+    async function init() {
+      if (!ignore) {
+        await loadSubjects(true);
+      }
+    }
+    init();
+    return () => {
+      ignore = true;
+    };
   }, []);
 
   function openAddModal() {
@@ -149,7 +160,7 @@ export default function SubjectsPage() {
       const token = localStorage.getItem("synaptix_token");
 
       if (!token) {
-        window.location.href = "/login";
+        router.push("/login");
         return;
       }
 
@@ -176,7 +187,7 @@ export default function SubjectsPage() {
 
       if (response.status === 401) {
         localStorage.removeItem("synaptix_token");
-        window.location.href = "/login";
+        router.push("/login");
         return;
       }
 
@@ -216,7 +227,7 @@ export default function SubjectsPage() {
       const token = localStorage.getItem("synaptix_token");
 
       if (!token) {
-        window.location.href = "/login";
+        router.push("/login");
         return;
       }
 
@@ -231,7 +242,7 @@ export default function SubjectsPage() {
 
       if (response.status === 401) {
         localStorage.removeItem("synaptix_token");
-        window.location.href = "/login";
+        router.push("/login");
         return;
       }
 
@@ -495,7 +506,7 @@ export default function SubjectsPage() {
 
             <button
               type="button"
-              onClick={(e) => {
+              onClick={() => {
                 const formEl = document.getElementById("subject-form") as HTMLFormElement | null;
                 formEl?.requestSubmit();
               }}

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 
 import { API_BASE } from "@/lib/api";
@@ -27,6 +28,7 @@ type StandardForm = {
 };
 
 export default function StandardsPage() {
+  const router = useRouter();
   const [standards, setStandards] = useState<Standard[]>([]);
   const [schools, setSchools] = useState<School[]>([]);
   const [loading, setLoading] = useState(true);
@@ -89,17 +91,19 @@ export default function StandardsPage() {
       .filter((group) => group.standards.length > 0);
   }, [standards, schools, search, sortOption]);
 
-  async function loadData() {
+  async function loadData(isInitial = false) {
     const token = localStorage.getItem("synaptix_token");
 
     if (!token) {
-      window.location.href = "/login";
+      router.push("/login");
       return;
     }
 
     try {
-      setLoading(true);
-      setError("");
+      if (!isInitial) {
+        setLoading(true);
+        setError("");
+      }
 
       const headers = {
         Authorization: `Bearer ${token}`,
@@ -115,7 +119,7 @@ export default function StandardsPage() {
         schoolsResponse.status === 401
       ) {
         localStorage.removeItem("synaptix_token");
-        window.location.href = "/login";
+        router.push("/login");
         return;
       }
 
@@ -158,7 +162,16 @@ export default function StandardsPage() {
   }
 
   useEffect(() => {
-    loadData();
+    let ignore = false;
+    async function init() {
+      if (!ignore) {
+        await loadData(true);
+      }
+    }
+    init();
+    return () => {
+      ignore = true;
+    };
   }, []);
 
   function openAddModal() {
@@ -204,7 +217,7 @@ export default function StandardsPage() {
     const token = localStorage.getItem("synaptix_token");
 
     if (!token) {
-      window.location.href = "/login";
+      router.push("/login");
       return;
     }
 
@@ -240,7 +253,7 @@ export default function StandardsPage() {
 
       if (response.status === 401) {
         localStorage.removeItem("synaptix_token");
-        window.location.href = "/login";
+        router.push("/login");
         return;
       }
 
@@ -278,7 +291,7 @@ export default function StandardsPage() {
     const token = localStorage.getItem("synaptix_token");
 
     if (!token) {
-      window.location.href = "/login";
+      router.push("/login");
       return;
     }
 
@@ -298,7 +311,7 @@ export default function StandardsPage() {
 
       if (response.status === 401) {
         localStorage.removeItem("synaptix_token");
-        window.location.href = "/login";
+        router.push("/login");
         return;
       }
 
@@ -323,17 +336,6 @@ export default function StandardsPage() {
     } finally {
       setDeletingId(null);
     }
-  }
-
-  function getSchoolName(standard: Standard) {
-    if (standard.school?.name) {
-      return standard.school.name;
-    }
-
-    return (
-      schools.find((school) => school.id === standard.schoolId)
-        ?.name ?? "Unknown school"
-    );
   }
 
   return (
@@ -384,7 +386,7 @@ export default function StandardsPage() {
 
             <button
               type="button"
-              onClick={loadData}
+              onClick={() => loadData()}
               disabled={loading}
               className="inline-flex h-10 shrink-0 items-center justify-center rounded-xl border border-red-200 bg-white px-4 text-xs font-semibold text-red-700 transition duration-200 hover:border-red-300 hover:bg-red-50 active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-60"
             >

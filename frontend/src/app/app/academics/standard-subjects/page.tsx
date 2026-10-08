@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 type School = {
@@ -31,6 +32,7 @@ import Modal from "@/app/app/components/Modal";
 import { compareStandards, naturalCompare } from "@/lib/sorting";
 
 export default function StandardSubjectsPage() {
+  const router = useRouter();
   const [standards, setStandards] = useState<Standard[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [mappings, setMappings] = useState<StandardSubjectMapping[]>([]);
@@ -54,7 +56,7 @@ export default function StandardSubjectsPage() {
 
   function handleUnauthorized() {
     localStorage.removeItem("synaptix_token");
-    window.location.href = "/login";
+    router.push("/login");
   }
 
   async function fetchInitialData() {
@@ -64,9 +66,6 @@ export default function StandardSubjectsPage() {
     }
 
     try {
-      setLoading(true);
-      setError("");
-
       const [standardsResponse, subjectsResponse] = await Promise.all([
         fetch(`${API_URL}/standards`, {
           headers: {
@@ -134,9 +133,6 @@ export default function StandardSubjectsPage() {
     }
 
     try {
-      setMappingLoading(true);
-      setError("");
-
       const response = await fetch(
         `${API_URL}/standards/${standardId}/subjects`,
         {
@@ -173,15 +169,35 @@ export default function StandardSubjectsPage() {
   }
 
   useEffect(() => {
-    fetchInitialData();
+    let ignore = false;
+
+    async function init() {
+      if (!ignore) {
+        await fetchInitialData();
+      }
+    }
+
+    init();
+
+    return () => {
+      ignore = true;
+    };
   }, []);
 
   useEffect(() => {
-    if (selectedStandardId) {
-      fetchMappings(selectedStandardId);
-      setSelectedSubjectId("");
-      setSearch("");
+    let ignore = false;
+
+    async function initMappings() {
+      if (!ignore && selectedStandardId) {
+        await fetchMappings(selectedStandardId);
+      }
     }
+
+    initMappings();
+
+    return () => {
+      ignore = true;
+    };
   }, [selectedStandardId]);
 
   const selectedStandard = standards.find(
@@ -358,9 +374,11 @@ export default function StandardSubjectsPage() {
 
               <select
                 value={selectedStandardId}
-                onChange={(event) =>
-                  setSelectedStandardId(event.target.value)
-                }
+                onChange={(event) => {
+                  setSelectedStandardId(event.target.value);
+                  setSelectedSubjectId("");
+                  setSearch("");
+                }}
                 className="h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm font-semibold text-stone-900 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100 lg:max-w-xl"
               >
                 {standards.length === 0 ? (
@@ -627,7 +645,7 @@ export default function StandardSubjectsPage() {
               <strong className="font-semibold text-stone-800">
                 {selectedStandard?.name || "this standard"}
               </strong>
-              ? This unlinks the subject from this standard's curriculum.
+              ? This unlinks the subject from this standard&apos;s curriculum.
             </p>
           </div>
         )}
