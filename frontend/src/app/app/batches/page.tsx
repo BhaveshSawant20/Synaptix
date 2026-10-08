@@ -1165,28 +1165,25 @@ export default function BatchesPage() {
             </div>
 
             <div className="flex items-center gap-2">
-              {activeTab === "timetable" && (
+              {activeTab === "timetable" ? (
                 <button
                   type="button"
-                  onClick={() => openAddScheduleModal()}
+                  onClick={() => openAddScheduleModal(timetableBatchId || undefined)}
                   className="inline-flex items-center justify-center gap-2 rounded-xl bg-orange-500 px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-orange-200 transition duration-200 hover:-translate-y-0.5 hover:bg-orange-600 active:translate-y-0 active:scale-[0.98]"
                 >
                   <span className="text-base leading-none">+</span>
                   <span>Add Class</span>
                 </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={openAddModal}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-orange-500 px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-orange-200 transition duration-200 hover:-translate-y-0.5 hover:bg-orange-600 active:translate-y-0 active:scale-[0.98]"
+                >
+                  <span className="text-base leading-none">+</span>
+                  <span>Add Batch</span>
+                </button>
               )}
-              <button
-                type="button"
-                onClick={openAddModal}
-                className={
-                  activeTab === "timetable"
-                    ? "inline-flex items-center justify-center gap-2 rounded-xl border border-stone-200 bg-white px-4 py-2.5 text-sm font-semibold text-stone-700 shadow-xs transition duration-200 hover:border-orange-300 hover:bg-orange-50/50 hover:text-orange-700 active:translate-y-0"
-                    : "inline-flex items-center justify-center gap-2 rounded-xl bg-orange-500 px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-orange-200 transition duration-200 hover:-translate-y-0.5 hover:bg-orange-600 active:translate-y-0 active:scale-[0.98]"
-                }
-              >
-                <span className="text-base leading-none">+</span>
-                <span>Add Batch</span>
-              </button>
             </div>
           </div>
         </section>
@@ -1447,18 +1444,16 @@ export default function BatchesPage() {
         ============================================================ */}
         {activeTab === "timetable" && (
           <section className="mt-8 space-y-6">
-            {/* Filter Bar: Batch Selection & Teacher Filter */}
-            <div className="glass flex flex-col gap-4 rounded-3xl border border-stone-200/70 bg-white/80 p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+            {/* Modern Unified Timetable Control Toolbar */}
+            <div className="flex flex-col gap-4 rounded-2xl border border-stone-200/80 bg-white p-4 shadow-xs sm:flex-row sm:items-center sm:justify-between">
               <div className="flex flex-wrap items-center gap-3">
                 {/* Batch Selector */}
-                <div>
-                  <label className="block text-[11px] font-bold uppercase tracking-wider text-stone-500">
-                    Filter by Batch:
-                  </label>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-semibold text-stone-500">Batch:</span>
                   <select
                     value={timetableBatchId}
                     onChange={(e) => setTimetableBatchId(e.target.value)}
-                    className="mt-1 h-10 min-w-[220px] rounded-xl border border-stone-200 bg-white px-3 text-xs font-semibold text-stone-800 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
+                    className="h-9 min-w-[200px] rounded-xl border border-stone-200 bg-stone-50/70 px-3 text-xs font-semibold text-stone-800 outline-none transition hover:bg-white focus:border-orange-400 focus:bg-white focus:ring-2 focus:ring-orange-100"
                   >
                     <option value="">All Batches</option>
                     {batches.map((b) => (
@@ -1470,14 +1465,12 @@ export default function BatchesPage() {
                 </div>
 
                 {/* Teacher Filter */}
-                <div>
-                  <label className="block text-[11px] font-bold uppercase tracking-wider text-stone-500">
-                    Filter by Teacher:
-                  </label>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-semibold text-stone-500">Teacher:</span>
                   <select
                     value={timetableTeacherId}
                     onChange={(e) => setTimetableTeacherId(e.target.value)}
-                    className="mt-1 h-10 min-w-[200px] rounded-xl border border-stone-200 bg-white px-3 text-xs font-semibold text-stone-800 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
+                    className="h-9 min-w-[180px] rounded-xl border border-stone-200 bg-stone-50/70 px-3 text-xs font-semibold text-stone-800 outline-none transition hover:bg-white focus:border-orange-400 focus:bg-white focus:ring-2 focus:ring-orange-100"
                   >
                     <option value="">All Teachers</option>
                     {allTeachers.map((t) => (
@@ -1487,24 +1480,36 @@ export default function BatchesPage() {
                     ))}
                   </select>
                 </div>
+
+                {/* Reset filters button */}
+                {(timetableBatchId || timetableTeacherId) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTimetableBatchId("");
+                      setTimetableTeacherId("");
+                    }}
+                    className="rounded-lg px-2.5 py-1 text-xs font-semibold text-stone-500 hover:bg-stone-100 hover:text-stone-800 transition"
+                  >
+                    Reset Filters
+                  </button>
+                )}
               </div>
 
-              <div className="flex items-center gap-2 self-end sm:self-auto">
-                <button
-                  type="button"
-                  onClick={() => openAddScheduleModal(timetableBatchId || undefined)}
-                  className="inline-flex items-center gap-1.5 rounded-xl bg-orange-500 px-4 py-2 text-xs font-semibold text-white shadow-sm shadow-orange-200 transition hover:bg-orange-600 active:scale-95"
-                >
-                  <span>+</span>
-                  <span>Add Class</span>
-                </button>
+              {/* Status Pill & Batch Details Link */}
+              <div className="flex items-center gap-3 self-end sm:self-auto">
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-orange-50 px-3 py-1 text-xs font-semibold text-orange-700 border border-orange-100">
+                  <span className="h-1.5 w-1.5 rounded-full bg-orange-500" />
+                  {displayedSchedules.length} {displayedSchedules.length === 1 ? "class" : "classes"} scheduled
+                </span>
 
                 {timetableBatchId && (
                   <Link
                     href={`/app/batches/${timetableBatchId}`}
-                    className="inline-flex items-center gap-1.5 rounded-xl border border-orange-200 bg-orange-50 px-4 py-2 text-xs font-semibold text-orange-700 transition hover:bg-orange-100"
+                    className="inline-flex items-center gap-1 text-xs font-semibold text-orange-600 hover:text-orange-700 hover:underline transition"
                   >
-                    <span>Go to Batch Details →</span>
+                    <span>Batch Profile</span>
+                    <span>→</span>
                   </Link>
                 )}
               </div>

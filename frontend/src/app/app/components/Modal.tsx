@@ -1,6 +1,7 @@
 "use client";
 
-import { ReactNode, useEffect } from "react";
+import { ReactNode, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 
 export type ModalProps = {
   isOpen: boolean;
@@ -38,6 +39,12 @@ export default function Modal({
   className = "",
   closeOnBackdrop = true,
 }: ModalProps) {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   useEffect(() => {
     if (!isOpen) return;
 
@@ -58,11 +65,11 @@ export default function Modal({
     };
   }, [isOpen, onClose]);
 
-  if (!isOpen) return null;
+  if (!isOpen || !mounted) return null;
 
   const maxWidthClass = MAX_WIDTH_MAP[maxWidth] || "max-w-xl";
 
-  return (
+  const modalContent = (
     <div
       role="dialog"
       aria-modal="true"
@@ -70,7 +77,7 @@ export default function Modal({
     >
       {/* Full-viewport backdrop dims entire screen including sidebar */}
       <div
-        className="fixed inset-0 bg-stone-950/45 backdrop-blur-sm transition-opacity duration-200"
+        className="fixed inset-0 bg-stone-950/50 backdrop-blur-sm transition-opacity duration-200"
         onMouseDown={() => {
           if (closeOnBackdrop) {
             onClose();
@@ -78,14 +85,14 @@ export default function Modal({
         }}
       />
 
-      {/* Main Application Area Centering Container (excluding left sidebar on desktop) */}
+      {/* Main Application Area Centering Container (strictly bounded to main area right of sidebar) */}
       <div className="fixed inset-0 lg:left-72 flex items-center justify-center p-4 sm:p-6 overflow-hidden pointer-events-none">
         <div
-          className={`pointer-events-auto flex max-h-[92vh] w-full ${maxWidthClass} flex-col overflow-hidden rounded-3xl border border-orange-100 bg-[#fffdf9] shadow-2xl transition-all duration-200 ${className}`}
+          className={`pointer-events-auto flex max-h-[88vh] w-full ${maxWidthClass} flex-col overflow-hidden rounded-3xl border border-stone-200/90 bg-[#fffdfa] shadow-2xl transition-all duration-200 ${className}`}
           onClick={(e) => e.stopPropagation()}
         >
           {/* Sticky Header */}
-          <div className="flex shrink-0 items-start justify-between gap-4 border-b border-stone-100 bg-white/95 px-6 py-5 sm:px-7">
+          <div className="flex shrink-0 items-start justify-between gap-4 border-b border-stone-100 bg-white px-6 py-5 sm:px-7">
             <div className="min-w-0">
               {badge && (
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-orange-600">
@@ -112,14 +119,14 @@ export default function Modal({
             </button>
           </div>
 
-          {/* Scrollable Modal Content */}
+          {/* Scrollable Modal Content Body */}
           <div className="flex-1 overflow-y-auto px-6 py-6 overscroll-contain sm:px-7">
             {children}
           </div>
 
-          {/* Sticky Footer */}
+          {/* Sticky Footer (if provided) */}
           {footer && (
-            <div className="flex shrink-0 flex-col-reverse gap-3 border-t border-stone-100 bg-white/95 px-6 py-4 sm:flex-row sm:justify-end sm:px-7">
+            <div className="flex shrink-0 flex-col-reverse gap-3 border-t border-stone-100 bg-stone-50/90 px-6 py-4 sm:flex-row sm:justify-end sm:px-7">
               {footer}
             </div>
           )}
@@ -127,4 +134,6 @@ export default function Modal({
       </div>
     </div>
   );
+
+  return createPortal(modalContent, document.body);
 }

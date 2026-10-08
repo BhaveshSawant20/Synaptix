@@ -573,6 +573,31 @@ export default function StandardsPage() {
             : "Add a new standard under one of your registered schools."
         }
         maxWidth="lg"
+        footer={
+          <>
+            <button
+              type="button"
+              onClick={closeModal}
+              disabled={saving}
+              className="h-11 rounded-xl border border-stone-200 bg-white px-5 text-sm font-semibold text-stone-600 transition duration-200 hover:border-stone-300 hover:bg-stone-50 active:translate-y-0 disabled:opacity-50"
+            >
+              Cancel
+            </button>
+
+            <button
+              type="submit"
+              form="standard-form"
+              disabled={saving || schools.length === 0}
+              className="h-11 rounded-xl bg-orange-500 px-6 text-sm font-semibold text-white shadow-md shadow-orange-200 transition duration-200 hover:-translate-y-0.5 hover:bg-orange-600 active:translate-y-0 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {saving
+                ? "Saving..."
+                : editingStandard
+                  ? "Save changes"
+                  : "Add standard"}
+            </button>
+          </>
+        }
       >
         {error && (
           <div className="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-xs leading-5 text-red-700">
@@ -580,7 +605,7 @@ export default function StandardsPage() {
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form id="standard-form" onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label
               htmlFor="standard-school"
@@ -633,73 +658,25 @@ export default function StandardsPage() {
               className="h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-900 outline-none transition duration-200 placeholder:text-stone-400 focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
             />
           </div>
-
-          <div className="flex flex-col-reverse gap-3 pt-3 sm:flex-row sm:justify-end">
-            <button
-              type="button"
-              onClick={closeModal}
-              disabled={saving}
-              className="h-11 rounded-xl border border-stone-200 bg-white px-5 text-sm font-semibold text-stone-600 transition duration-200 hover:border-stone-300 hover:bg-stone-50 active:translate-y-0 disabled:opacity-50"
-            >
-              Cancel
-            </button>
-
-            <button
-              type="submit"
-              disabled={saving || schools.length === 0}
-              className="h-11 rounded-xl bg-orange-500 px-6 text-sm font-semibold text-white shadow-md shadow-orange-200 transition duration-200 hover:-translate-y-0.5 hover:bg-orange-600 active:translate-y-0 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {saving
-                ? "Saving..."
-                : editingStandard
-                  ? "Save changes"
-                  : "Add standard"}
-            </button>
-          </div>
         </form>
       </Modal>
 
       {/* Delete Confirmation Modal */}
       {showDeleteModal && deletingStandard && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-stone-950/45 px-5 py-8 backdrop-blur-sm lg:pl-72">
-          <div className="w-full max-w-md rounded-3xl border border-white/50 bg-white p-6 shadow-2xl transition-all duration-200 sm:p-8">
-            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-red-50 text-red-600">
-              <svg
-                viewBox="0 0 24 24"
-                className="h-6 w-6"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                />
-              </svg>
-            </div>
-
-            <div className="mt-5 text-center">
-              <h3 className="text-lg font-semibold text-stone-900">
-                Delete Standard
-              </h3>
-
-              <p className="mt-2 text-xs leading-5 text-stone-500">
-                Are you sure you want to delete{" "}
-                <span className="font-semibold text-stone-800">
-                  &ldquo;{deletingStandard.name}&rdquo;
-                </span>
-                ? This may affect student records and subject associations
-                linked to this standard. This action cannot be undone.
-              </p>
-            </div>
-
-            <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+        <Modal
+          isOpen={showDeleteModal}
+          onClose={closeDeleteModal}
+          badge="Danger Zone"
+          title="Delete Standard"
+          description={`Are you sure you want to delete "${deletingStandard.name}"? This action cannot be undone.`}
+          maxWidth="md"
+          footer={
+            <>
               <button
                 type="button"
                 onClick={closeDeleteModal}
                 disabled={Boolean(deletingId)}
-                className="h-11 flex-1 rounded-xl border border-stone-200 bg-white px-4 text-sm font-semibold text-stone-600 transition duration-200 hover:border-stone-300 hover:bg-stone-50 active:translate-y-0 disabled:opacity-50"
+                className="h-11 rounded-xl border border-stone-200 bg-white px-5 text-sm font-semibold text-stone-600 transition duration-200 hover:border-stone-300 hover:bg-stone-50 active:translate-y-0 disabled:opacity-50"
               >
                 Cancel
               </button>
@@ -708,13 +685,23 @@ export default function StandardsPage() {
                 type="button"
                 onClick={handleConfirmDelete}
                 disabled={Boolean(deletingId)}
-                className="h-11 flex-1 rounded-xl border border-red-200 bg-red-600 px-4 text-sm font-semibold text-white shadow-md shadow-red-200 transition duration-200 hover:-translate-y-0.5 hover:bg-red-700 active:translate-y-0 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
+                className="h-11 rounded-xl border border-red-200 bg-red-600 px-5 text-sm font-semibold text-white shadow-md shadow-red-200 transition duration-200 hover:-translate-y-0.5 hover:bg-red-700 active:translate-y-0 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {deletingId ? "Deleting..." : "Delete Standard"}
               </button>
-            </div>
+            </>
+          }
+        >
+          <div className="py-2 text-xs leading-5 text-stone-600">
+            <p>
+              This may affect student records and subject associations linked to{" "}
+              <strong className="font-semibold text-stone-800">
+                {deletingStandard.name}
+              </strong>
+              . This action cannot be undone.
+            </p>
           </div>
-        </div>
+        </Modal>
       )}
       </div>
     </main>

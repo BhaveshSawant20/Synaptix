@@ -141,51 +141,32 @@ export default function WeeklyTimetable({
 
   return (
     <div className="w-full">
-      {/* Optional Timetable Header */}
-      {(title || onAddSchedule) && (
-        <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      {/* Timetable Overview Bar */}
+      {title && (
+        <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            {title && (
-              <h3 className="text-lg font-bold tracking-tight text-stone-900">
-                {title}
-              </h3>
-            )}
+            <h3 className="text-base font-bold tracking-tight text-stone-900 sm:text-lg">
+              {title}
+            </h3>
             {subtitle && (
               <p className="mt-0.5 text-xs text-stone-500">{subtitle}</p>
             )}
           </div>
 
           <div className="flex items-center gap-2">
-            <span className="rounded-full bg-orange-50 px-3 py-1 text-xs font-semibold text-orange-700">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-orange-50 px-3 py-1 text-xs font-semibold text-orange-700 border border-orange-100">
+              <span className="h-1.5 w-1.5 rounded-full bg-orange-500" />
               {totalClasses} {totalClasses === 1 ? "class" : "classes"} / week
             </span>
 
-            {hasSaturday && (
-              <span className="rounded-full bg-stone-100 px-2.5 py-1 text-xs font-medium text-stone-600">
-                Mon – Sat
-              </span>
-            )}
-            {!hasSaturday && (
-              <span className="rounded-full bg-stone-100 px-2.5 py-1 text-xs font-medium text-stone-600">
-                Mon – Fri
-              </span>
-            )}
-
-            {!readOnly && onAddSchedule && (
-              <button
-                type="button"
-                onClick={onAddSchedule}
-                className="inline-flex items-center gap-1.5 rounded-xl bg-orange-500 px-3.5 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-orange-600 active:scale-95"
-              >
-                <span>+</span>
-                <span>Add Class</span>
-              </button>
-            )}
+            <span className="rounded-full bg-stone-100 px-2.5 py-1 text-xs font-medium text-stone-600">
+              {hasSaturday ? "Mon – Sat" : "Mon – Fri"}
+            </span>
           </div>
         </div>
       )}
 
-      {/* Mobile Day Selector (Visible on small screens) */}
+      {/* Mobile Day Selector (Visible on mobile screens) */}
       <div className="mb-4 flex items-center gap-1.5 overflow-x-auto pb-1 sm:hidden">
         {activeDays.map((d) => {
           const count = schedulesByDay.get(d.dayOfWeek)?.length || 0;
@@ -218,18 +199,18 @@ export default function WeeklyTimetable({
         })}
       </div>
 
-      {/* Mobile Day Content (Single Day Card View) */}
+      {/* Mobile Single Day Card View */}
       <div className="block sm:hidden">
         {totalClasses === 0 ? (
-          <div className="rounded-2xl border border-stone-200 bg-white p-8 text-center shadow-sm">
-            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-orange-50 text-xl text-orange-500">
-              🗓
+          <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-stone-200 bg-white p-8 text-center shadow-xs">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-orange-50 text-xl text-orange-500">
+              📅
             </div>
-            <p className="mt-3 text-sm font-semibold text-stone-800">
+            <p className="mt-3 text-sm font-bold text-stone-900">
               {emptyMessage || "No classes scheduled yet"}
             </p>
             <p className="mx-auto mt-1 max-w-xs text-xs text-stone-400">
-              Create your first timetable entry to start building the weekly schedule.
+              Create your first timetable entry to set up recurring weekly periods.
             </p>
             {!readOnly && onAddSchedule && (
               <button
@@ -337,147 +318,166 @@ export default function WeeklyTimetable({
         )}
       </div>
 
-      {/* Desktop Weekly Grid */}
-      <div className="hidden sm:block overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-sm">
-        {totalClasses === 0 && (
-          <div className="p-12 text-center">
-            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-orange-50 text-xl text-orange-500">
-              🗓
+      {/* Desktop Weekly Schedule View */}
+      <div className="hidden sm:block">
+        {totalClasses === 0 ? (
+          <div className="flex flex-col items-center justify-center rounded-3xl border border-dashed border-stone-200/90 bg-white p-12 text-center shadow-xs">
+            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-orange-50 text-2xl text-orange-500 ring-4 ring-orange-50/50">
+              📅
             </div>
-            <p className="mt-3 text-sm font-semibold text-stone-800">
+            <h4 className="mt-4 text-base font-bold text-stone-900">
               {emptyMessage || "No classes scheduled yet"}
-            </p>
-            <p className="mx-auto mt-1 max-w-sm text-xs text-stone-400">
-              Create your first timetable entry to start building the weekly schedule.
+            </h4>
+            <p className="mx-auto mt-1 max-w-sm text-xs leading-relaxed text-stone-400">
+              Create your first timetable entry to set up recurring weekly periods for this cohort.
             </p>
             {!readOnly && onAddSchedule && (
               <button
                 type="button"
                 onClick={onAddSchedule}
-                className="mt-4 inline-flex items-center gap-1.5 rounded-xl bg-orange-500 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-orange-600 active:scale-95"
+                className="mt-5 inline-flex items-center gap-2 rounded-xl bg-orange-500 px-5 py-2.5 text-xs font-semibold text-white shadow-md shadow-orange-200 transition duration-150 hover:-translate-y-0.5 hover:bg-orange-600 active:translate-y-0 active:scale-95"
               >
-                <span>+</span>
+                <span className="text-sm font-bold leading-none">+</span>
                 <span>Add Class</span>
               </button>
             )}
           </div>
-        )}
+        ) : (
+          <div className="overflow-hidden rounded-2xl border border-stone-200/90 bg-white shadow-xs">
+            <div
+              className="grid divide-x divide-stone-200/80 bg-white"
+              style={{
+                gridTemplateColumns: `repeat(${activeDays.length}, minmax(0, 1fr))`,
+              }}
+            >
+              {activeDays.map((day) => {
+                const dayClasses = schedulesByDay.get(day.dayOfWeek) || [];
 
-        {totalClasses > 0 && (
-          <div
-            className="grid divide-x divide-stone-200"
-            style={{
-              gridTemplateColumns: `repeat(${activeDays.length}, minmax(0, 1fr))`,
-            }}
-          >
-            {activeDays.map((day) => {
-              const dayClasses = schedulesByDay.get(day.dayOfWeek) || [];
-
-              return (
-                <div key={day.dayOfWeek} className="flex flex-col min-w-0">
-                  {/* Column Header */}
-                  <div className="border-b border-stone-200 bg-stone-50/80 px-3 py-3 text-center">
-                    <p className="text-xs font-bold uppercase tracking-wider text-stone-700">
-                      {day.full}
-                    </p>
-                    <p className="mt-0.5 text-[11px] text-stone-400">
-                      {dayClasses.length} {dayClasses.length === 1 ? "class" : "classes"}
-                    </p>
-                  </div>
-
-                  {/* Day Schedule Content */}
-                  <div className="flex-1 space-y-2.5 p-3 min-h-[300px] bg-stone-50/20">
-                    {dayClasses.length === 0 ? (
-                      <div className="flex h-32 items-center justify-center text-center">
-                        <span className="text-[11px] font-medium text-stone-300">
-                          No classes
+                return (
+                  <div key={day.dayOfWeek} className="flex flex-col min-w-0">
+                    {/* Modern Day Column Header */}
+                    <div className="border-b border-stone-200/80 bg-stone-50/70 px-3.5 py-3 text-center">
+                      <div className="inline-flex items-center gap-1.5">
+                        <span className="text-xs font-bold uppercase tracking-wider text-stone-800">
+                          {day.full}
+                        </span>
+                        <span
+                          className={`flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-bold ${
+                            dayClasses.length > 0
+                              ? "bg-orange-100 text-orange-700"
+                              : "bg-stone-200/70 text-stone-500"
+                          }`}
+                        >
+                          {dayClasses.length}
                         </span>
                       </div>
-                    ) : (
-                      dayClasses.map((item) => {
-                        const color = getSubjectColor(item.subject?.name);
+                    </div>
 
-                        return (
-                          <div
-                            key={item.id}
-                            className={`group relative rounded-xl border ${color.border} ${color.bg} p-2.5 shadow-xs transition duration-150 hover:-translate-y-0.5 hover:shadow-md`}
-                          >
-                            {/* Time Badge */}
-                            <div className="flex items-center justify-between gap-1">
-                              <span className="text-[11px] font-bold text-stone-900">
-                                {formatTimeRange(item.startTime, item.endTime)}
-                              </span>
+                    {/* Day Schedule Column Body */}
+                    <div className="flex-1 space-y-2.5 p-3 min-h-[340px] bg-[#faf8f5]/40 transition-colors">
+                      {dayClasses.length === 0 ? (
+                        <div className="flex h-32 flex-col items-center justify-center rounded-xl border border-dashed border-stone-200/60 p-3 text-center">
+                          <span className="text-[11px] font-medium text-stone-400">
+                            No classes
+                          </span>
+                          {!readOnly && onAddSchedule && (
+                            <button
+                              type="button"
+                              onClick={onAddSchedule}
+                              className="mt-1.5 text-[10px] font-semibold text-orange-600 hover:text-orange-700 hover:underline"
+                            >
+                              + Schedule
+                            </button>
+                          )}
+                        </div>
+                      ) : (
+                        dayClasses.map((item) => {
+                          const color = getSubjectColor(item.subject?.name);
 
-                              {!readOnly && (
-                                <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
-                                  {onEditSchedule && (
-                                    <button
-                                      type="button"
-                                      onClick={() => onEditSchedule(item)}
-                                      title="Edit class"
-                                      className="rounded-md bg-white px-1.5 py-0.5 text-[10px] font-semibold text-stone-700 shadow-xs hover:bg-stone-50"
-                                    >
-                                      Edit
-                                    </button>
-                                  )}
-                                  {onDeleteSchedule && (
-                                    <button
-                                      type="button"
-                                      onClick={() => onDeleteSchedule(item)}
-                                      title="Delete class"
-                                      className="rounded-md bg-red-50 px-1.5 py-0.5 text-[10px] font-semibold text-red-600 hover:bg-red-100"
-                                    >
-                                      ✕
-                                    </button>
-                                  )}
+                          return (
+                            <div
+                              key={item.id}
+                              className={`group relative rounded-xl border ${color.border} ${color.bg} p-2.5 shadow-xs transition duration-150 hover:-translate-y-0.5 hover:shadow-md`}
+                            >
+                              {/* Time Header */}
+                              <div className="flex items-center justify-between gap-1">
+                                <span className="text-[11px] font-bold text-stone-900">
+                                  {formatTimeRange(item.startTime, item.endTime)}
+                                </span>
+
+                                {!readOnly && (
+                                  <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
+                                    {onEditSchedule && (
+                                      <button
+                                        type="button"
+                                        onClick={() => onEditSchedule(item)}
+                                        title="Edit class"
+                                        className="rounded-md bg-white px-1.5 py-0.5 text-[10px] font-semibold text-stone-700 shadow-xs hover:bg-stone-50 hover:text-orange-600 transition"
+                                      >
+                                        Edit
+                                      </button>
+                                    )}
+                                    {onDeleteSchedule && (
+                                      <button
+                                        type="button"
+                                        onClick={() => onDeleteSchedule(item)}
+                                        title="Delete class"
+                                        className="rounded-md bg-red-50 px-1.5 py-0.5 text-[10px] font-semibold text-red-600 hover:bg-red-100 transition"
+                                      >
+                                        ✕
+                                      </button>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Subject Badge */}
+                              <div className="mt-1.5">
+                                <span
+                                  className={`inline-block rounded-md px-2 py-0.5 text-xs font-bold leading-tight ${color.badge}`}
+                                  title={item.subject?.name || "Subject"}
+                                >
+                                  {item.subject?.name || "Subject not set"}
+                                </span>
+                              </div>
+
+                              {/* Cohort Name */}
+                              {showBatchName && item.batch && (
+                                <p
+                                  className="mt-1 text-[11px] font-medium text-orange-700 truncate"
+                                  title={item.batch.name}
+                                >
+                                  {item.batch.name}
+                                </p>
+                              )}
+
+                              {/* Teacher Info */}
+                              {showTeacherName && item.teacher && (
+                                <div className="mt-1 flex items-center gap-1 text-[11px] text-stone-600 truncate">
+                                  <span className="text-stone-400">👤</span>
+                                  <span className="truncate" title={item.teacher.name}>
+                                    {item.teacher.name}
+                                  </span>
+                                </div>
+                              )}
+
+                              {/* Room Info */}
+                              {item.room && (
+                                <div className="mt-1">
+                                  <span className="rounded bg-white/80 px-1.5 py-0.5 text-[10px] font-medium text-stone-500">
+                                    Room: {item.room}
+                                  </span>
                                 </div>
                               )}
                             </div>
-
-                            {/* Subject Name */}
-                            <p
-                              className={`mt-1.5 text-xs font-bold leading-tight ${color.text} truncate`}
-                              title={item.subject?.name || "Subject"}
-                            >
-                              {item.subject?.name || "Subject not set"}
-                            </p>
-
-                            {/* Batch Name (Optional) */}
-                            {showBatchName && item.batch && (
-                              <p
-                                className="mt-0.5 text-[11px] font-medium text-orange-700 truncate"
-                                title={item.batch.name}
-                              >
-                                {item.batch.name}
-                              </p>
-                            )}
-
-                            {/* Teacher Name */}
-                            {showTeacherName && item.teacher && (
-                              <div className="mt-1 flex items-center gap-1 text-[11px] text-stone-600 truncate">
-                                <span className="text-stone-400">👤</span>
-                                <span className="truncate" title={item.teacher.name}>
-                                  {item.teacher.name}
-                                </span>
-                              </div>
-                            )}
-
-                            {/* Room */}
-                            {item.room && (
-                              <div className="mt-1">
-                                <span className="rounded bg-white/80 px-1.5 py-0.5 text-[10px] font-medium text-stone-500">
-                                  {item.room}
-                                </span>
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })
-                    )}
+                          );
+                        })
+                      )}
+                    </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
         )}
       </div>

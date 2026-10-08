@@ -655,12 +655,12 @@ export default function AppLayout({
           <main
             className={`
               min-h-[calc(100vh-4rem)]
-              transition-all duration-200 ease-out
+              transition-opacity duration-200 ease-out
               motion-reduce:transition-none
               ${
                 pageTransitioning
-                  ? "translate-y-[2px] opacity-[0.72]"
-                  : "translate-y-0 opacity-100"
+                  ? "opacity-[0.72]"
+                  : "opacity-100"
               }
             `}
           >
