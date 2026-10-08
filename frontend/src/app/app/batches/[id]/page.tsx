@@ -148,6 +148,28 @@ const DAYS = [
   { value: "6", label: "Saturday" },
 ];
 
+const TIME_OPTIONS: string[] = [];
+for (let h = 6; h <= 22; h++) {
+  for (const m of [0, 15, 30, 45]) {
+    if (h === 22 && m > 0) break;
+    const hh = h.toString().padStart(2, "0");
+    const mm = m.toString().padStart(2, "0");
+    TIME_OPTIONS.push(`${hh}:${mm}`);
+  }
+}
+
+function formatTimeOption(value: string): string {
+  if (!value) return "";
+  const parts = value.split(":");
+  if (parts.length < 2) return value;
+  const hour = Number(parts[0]);
+  const minute = Number(parts[1]);
+  if (Number.isNaN(hour) || Number.isNaN(minute)) return value;
+  const suffix = hour >= 12 ? "PM" : "AM";
+  const displayHour = hour % 12 || 12;
+  return `${displayHour}:${String(minute).padStart(2, "0")} ${suffix} (${value})`;
+}
+
 function getToken() {
   if (typeof window === "undefined") {
     return "";
@@ -270,7 +292,7 @@ export default function BatchDetailsPage() {
   const [editingSchedule, setEditingSchedule] = useState<TimetableSchedule | null>(null);
 
   const [scheduleForm, setScheduleForm] = useState<ScheduleForm>({
-    dayOfWeek: "1",
+    dayOfWeek: "",
     startTime: "",
     endTime: "",
     teacherId: "",
@@ -608,7 +630,7 @@ export default function BatchDetailsPage() {
 
   function resetScheduleForm() {
     setScheduleForm({
-      dayOfWeek: "1",
+      dayOfWeek: "",
       startTime: "",
       endTime: "",
       teacherId: "",
@@ -683,18 +705,28 @@ export default function BatchDetailsPage() {
       return;
     }
 
-    if (!scheduleForm.startTime || !scheduleForm.endTime) {
-      setScheduleError("Start time and end time are required.");
-      return;
-    }
-
-    if (scheduleForm.startTime >= scheduleForm.endTime) {
-      setScheduleError("End time must be later than start time.");
+    if (!scheduleForm.dayOfWeek) {
+      setScheduleError("Please select a day.");
       return;
     }
 
     if (!scheduleForm.teacherId) {
       setScheduleError("Please select a teacher.");
+      return;
+    }
+
+    if (!scheduleForm.startTime) {
+      setScheduleError("Please select a start time.");
+      return;
+    }
+
+    if (!scheduleForm.endTime) {
+      setScheduleError("Please select an end time.");
+      return;
+    }
+
+    if (scheduleForm.startTime >= scheduleForm.endTime) {
+      setScheduleError("End time must be later than start time.");
       return;
     }
 
@@ -1642,6 +1674,9 @@ export default function BatchDetailsPage() {
                   className="mt-2 h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-900 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
                   required
                 >
+                  <option value="" disabled>
+                    Select a Day
+                  </option>
                   {DAYS.map((day) => (
                     <option key={day.value} value={day.value}>
                       {day.label}
@@ -1654,8 +1689,7 @@ export default function BatchDetailsPage() {
                 <label className="text-xs font-semibold uppercase tracking-[0.16em] text-stone-500">
                   Start Time *
                 </label>
-                <input
-                  type="time"
+                <select
                   value={scheduleForm.startTime}
                   onChange={(e) =>
                     setScheduleForm((cur) => ({
@@ -1665,15 +1699,29 @@ export default function BatchDetailsPage() {
                   }
                   className="mt-2 h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-900 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
                   required
-                />
+                >
+                  <option value="" disabled>
+                    Select Start Time
+                  </option>
+                  {scheduleForm.startTime &&
+                    !TIME_OPTIONS.includes(scheduleForm.startTime) && (
+                      <option value={scheduleForm.startTime}>
+                        {formatTimeOption(scheduleForm.startTime)}
+                      </option>
+                    )}
+                  {TIME_OPTIONS.map((time) => (
+                    <option key={time} value={time}>
+                      {formatTimeOption(time)}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div>
                 <label className="text-xs font-semibold uppercase tracking-[0.16em] text-stone-500">
                   End Time *
                 </label>
-                <input
-                  type="time"
+                <select
                   value={scheduleForm.endTime}
                   onChange={(e) =>
                     setScheduleForm((cur) => ({
@@ -1683,7 +1731,22 @@ export default function BatchDetailsPage() {
                   }
                   className="mt-2 h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-900 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
                   required
-                />
+                >
+                  <option value="" disabled>
+                    Select End Time
+                  </option>
+                  {scheduleForm.endTime &&
+                    !TIME_OPTIONS.includes(scheduleForm.endTime) && (
+                      <option value={scheduleForm.endTime}>
+                        {formatTimeOption(scheduleForm.endTime)}
+                      </option>
+                    )}
+                  {TIME_OPTIONS.map((time) => (
+                    <option key={time} value={time}>
+                      {formatTimeOption(time)}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div>
@@ -1701,7 +1764,9 @@ export default function BatchDetailsPage() {
                   className="mt-2 h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-900 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
                   required
                 >
-                  <option value="">Select teacher</option>
+                  <option value="" disabled>
+                    Select a Teacher
+                  </option>
                   {teachers.map((assignment) => (
                     <option
                       key={assignment.teacherId}
@@ -1732,7 +1797,7 @@ export default function BatchDetailsPage() {
                   }
                   className="mt-2 h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-900 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
                 >
-                  <option value="">Select subject</option>
+                  <option value="">Select subject (optional)</option>
                   {subjects.map((subject) => (
                     <option key={subject.id} value={subject.id}>
                       {subject.name}

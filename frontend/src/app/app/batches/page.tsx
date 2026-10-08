@@ -104,6 +104,28 @@ const emptyForm: BatchForm = {
   endDate: "",
 };
 
+const TIME_OPTIONS: string[] = [];
+for (let h = 6; h <= 22; h++) {
+  for (const m of [0, 15, 30, 45]) {
+    if (h === 22 && m > 0) break;
+    const hh = h.toString().padStart(2, "0");
+    const mm = m.toString().padStart(2, "0");
+    TIME_OPTIONS.push(`${hh}:${mm}`);
+  }
+}
+
+function formatTimeOption(value: string): string {
+  if (!value) return "";
+  const parts = value.split(":");
+  if (parts.length < 2) return value;
+  const hour = Number(parts[0]);
+  const minute = Number(parts[1]);
+  if (Number.isNaN(hour) || Number.isNaN(minute)) return value;
+  const suffix = hour >= 12 ? "PM" : "AM";
+  const displayHour = hour % 12 || 12;
+  return `${displayHour}:${String(minute).padStart(2, "0")} ${suffix} (${value})`;
+}
+
 export default function BatchesPage() {
   const router = useRouter();
 
@@ -134,13 +156,21 @@ export default function BatchesPage() {
     useState<TimetableSchedule | null>(null);
   const [scheduleSaving, setScheduleSaving] = useState(false);
   const [scheduleError, setScheduleError] = useState("");
-  const [scheduleForm, setScheduleForm] = useState({
+  const [scheduleForm, setScheduleForm] = useState<{
+    batchId: string;
+    dayOfWeek: number | "";
+    subjectId: string;
+    teacherId: string;
+    startTime: string;
+    endTime: string;
+    room: string;
+  }>({
     batchId: "",
-    dayOfWeek: 1,
+    dayOfWeek: "",
     subjectId: "",
     teacherId: "",
-    startTime: "16:00",
-    endTime: "17:00",
+    startTime: "",
+    endTime: "",
     room: "",
   });
   const [deletingSchedule, setDeletingSchedule] =
@@ -966,16 +996,16 @@ export default function BatchesPage() {
     return `${start} → ${end}`;
   }
 
-  function openAddScheduleModal(defaultBatchId?: string) {
+  function openAddScheduleModal() {
     setEditingSchedule(null);
     setScheduleError("");
     setScheduleForm({
-      batchId: defaultBatchId || timetableBatchId || (batches[0]?.id ?? ""),
-      dayOfWeek: 1,
+      batchId: "",
+      dayOfWeek: "",
       subjectId: "",
-      teacherId: timetableTeacherId || "",
-      startTime: "16:00",
-      endTime: "17:00",
+      teacherId: "",
+      startTime: "",
+      endTime: "",
       room: "",
     });
     setShowScheduleModal(true);
@@ -1008,8 +1038,28 @@ export default function BatchesPage() {
       setScheduleError("Please select a batch.");
       return;
     }
-    if (!scheduleForm.startTime || !scheduleForm.endTime) {
-      setScheduleError("Start time and end time are required.");
+    if (
+      scheduleForm.dayOfWeek === "" ||
+      scheduleForm.dayOfWeek === undefined ||
+      scheduleForm.dayOfWeek === null
+    ) {
+      setScheduleError("Please select a day.");
+      return;
+    }
+    if (!scheduleForm.subjectId) {
+      setScheduleError("Please select a subject.");
+      return;
+    }
+    if (!scheduleForm.teacherId) {
+      setScheduleError("Please select a teacher.");
+      return;
+    }
+    if (!scheduleForm.startTime) {
+      setScheduleError("Please select a start time.");
+      return;
+    }
+    if (!scheduleForm.endTime) {
+      setScheduleError("Please select an end time.");
       return;
     }
     if (scheduleForm.endTime <= scheduleForm.startTime) {
@@ -1168,7 +1218,7 @@ export default function BatchesPage() {
               {activeTab === "timetable" ? (
                 <button
                   type="button"
-                  onClick={() => openAddScheduleModal(timetableBatchId || undefined)}
+                  onClick={() => openAddScheduleModal()}
                   className="inline-flex items-center justify-center gap-2 rounded-xl bg-orange-500 px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-orange-200 transition duration-200 hover:-translate-y-0.5 hover:bg-orange-600 active:translate-y-0 active:scale-[0.98]"
                 >
                   <span className="text-base leading-none">+</span>
@@ -1528,7 +1578,7 @@ export default function BatchesPage() {
             ) : (
               <WeeklyTimetable
                 schedules={displayedSchedules}
-                onAddSchedule={() => openAddScheduleModal(timetableBatchId || undefined)}
+                onAddSchedule={() => openAddScheduleModal()}
                 onEditSchedule={openEditScheduleModal}
                 onDeleteSchedule={(sched) => setDeletingSchedule(sched)}
                 showBatchName={!timetableBatchId}
@@ -2414,7 +2464,7 @@ export default function BatchesPage() {
             {/* Batch Selector */}
             <div>
               <label className="text-xs font-semibold text-stone-700">
-                Batch / Cohort *
+                Batch *
               </label>
               <select
                 value={scheduleForm.batchId}
@@ -2424,7 +2474,9 @@ export default function BatchesPage() {
                 required
                 className="mt-1.5 h-11 w-full rounded-xl border border-stone-200 bg-white px-3.5 text-sm font-medium text-stone-900 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
               >
-                <option value="">Select a batch</option>
+                <option value="" disabled>
+                  Select a Batch
+                </option>
                 {batches.map((b) => (
                   <option key={b.id} value={b.id}>
                     {b.name}
@@ -2436,19 +2488,22 @@ export default function BatchesPage() {
             {/* Day of Week */}
             <div>
               <label className="text-xs font-semibold text-stone-700">
-                Day of Week *
+                Day *
               </label>
               <select
                 value={scheduleForm.dayOfWeek}
                 onChange={(e) =>
                   setScheduleForm({
                     ...scheduleForm,
-                    dayOfWeek: Number(e.target.value),
+                    dayOfWeek: e.target.value === "" ? "" : Number(e.target.value),
                   })
                 }
                 required
                 className="mt-1.5 h-11 w-full rounded-xl border border-stone-200 bg-white px-3.5 text-sm font-medium text-stone-900 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
               >
+                <option value="" disabled>
+                  Select a Day
+                </option>
                 <option value={1}>Monday</option>
                 <option value={2}>Tuesday</option>
                 <option value={3}>Wednesday</option>
@@ -2462,7 +2517,7 @@ export default function BatchesPage() {
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <label className="text-xs font-semibold text-stone-700">
-                  Subject
+                  Subject *
                 </label>
                 <select
                   value={scheduleForm.subjectId}
@@ -2472,9 +2527,12 @@ export default function BatchesPage() {
                       subjectId: e.target.value,
                     })
                   }
+                  required
                   className="mt-1.5 h-11 w-full rounded-xl border border-stone-200 bg-white px-3.5 text-sm font-medium text-stone-900 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
                 >
-                  <option value="">Select subject (optional)</option>
+                  <option value="" disabled>
+                    Select a Subject
+                  </option>
                   {allSubjects.map((s) => (
                     <option key={s.id} value={s.id}>
                       {s.name} {s.code ? `(${s.code})` : ""}
@@ -2485,7 +2543,7 @@ export default function BatchesPage() {
 
               <div>
                 <label className="text-xs font-semibold text-stone-700">
-                  Faculty / Teacher
+                  Teacher *
                 </label>
                 <select
                   value={scheduleForm.teacherId}
@@ -2495,9 +2553,12 @@ export default function BatchesPage() {
                       teacherId: e.target.value,
                     })
                   }
+                  required
                   className="mt-1.5 h-11 w-full rounded-xl border border-stone-200 bg-white px-3.5 text-sm font-medium text-stone-900 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
                 >
-                  <option value="">Select teacher (optional)</option>
+                  <option value="" disabled>
+                    Select a Teacher
+                  </option>
                   {allTeachers.map((t) => (
                     <option key={t.id} value={t.id}>
                       {t.name} {t.specialization ? `(${t.specialization})` : ""}
@@ -2513,8 +2574,7 @@ export default function BatchesPage() {
                 <label className="text-xs font-semibold text-stone-700">
                   Start Time *
                 </label>
-                <input
-                  type="time"
+                <select
                   value={scheduleForm.startTime}
                   onChange={(e) =>
                     setScheduleForm({
@@ -2524,15 +2584,29 @@ export default function BatchesPage() {
                   }
                   required
                   className="mt-1.5 h-11 w-full rounded-xl border border-stone-200 bg-white px-3.5 text-sm font-medium text-stone-900 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
-                />
+                >
+                  <option value="" disabled>
+                    Select Start Time
+                  </option>
+                  {scheduleForm.startTime &&
+                    !TIME_OPTIONS.includes(scheduleForm.startTime) && (
+                      <option value={scheduleForm.startTime}>
+                        {formatTimeOption(scheduleForm.startTime)}
+                      </option>
+                    )}
+                  {TIME_OPTIONS.map((time) => (
+                    <option key={time} value={time}>
+                      {formatTimeOption(time)}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div>
                 <label className="text-xs font-semibold text-stone-700">
                   End Time *
                 </label>
-                <input
-                  type="time"
+                <select
                   value={scheduleForm.endTime}
                   onChange={(e) =>
                     setScheduleForm({
@@ -2542,7 +2616,22 @@ export default function BatchesPage() {
                   }
                   required
                   className="mt-1.5 h-11 w-full rounded-xl border border-stone-200 bg-white px-3.5 text-sm font-medium text-stone-900 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
-                />
+                >
+                  <option value="" disabled>
+                    Select End Time
+                  </option>
+                  {scheduleForm.endTime &&
+                    !TIME_OPTIONS.includes(scheduleForm.endTime) && (
+                      <option value={scheduleForm.endTime}>
+                        {formatTimeOption(scheduleForm.endTime)}
+                      </option>
+                    )}
+                  {TIME_OPTIONS.map((time) => (
+                    <option key={time} value={time}>
+                      {formatTimeOption(time)}
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
 
