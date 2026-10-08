@@ -2,7 +2,9 @@
 
 import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useState } from "react";
-
+import Modal from "@/app/app/components/Modal";
+import SortControl from "@/app/app/components/SortControl";
+import { SortOption, naturalCompare, sortRecords } from "@/lib/sorting";
 import { API_BASE } from "@/lib/api";
 
 type School = {
@@ -25,6 +27,7 @@ type Student = {
   dateOfBirth?: string | null;
   schoolId: string;
   standardId: string;
+  createdAt?: string;
   school?: {
     id: string;
     name: string;
@@ -59,15 +62,11 @@ function getToken() {
   if (typeof window === "undefined") {
     return "";
   }
-
   return localStorage.getItem("synaptix_token") || "";
 }
 
 function getInitials(name: string) {
-  if (!name.trim()) {
-    return "ST";
-  }
-
+  if (!name.trim()) return "ST";
   return name
     .split(" ")
     .filter(Boolean)
@@ -77,16 +76,9 @@ function getInitials(name: string) {
 }
 
 function formatDate(value?: string | null) {
-  if (!value) {
-    return "—";
-  }
-
+  if (!value) return "—";
   const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return "—";
-  }
-
+  if (Number.isNaN(date.getTime())) return "—";
   return date.toLocaleDateString("en-IN", {
     day: "2-digit",
     month: "2-digit",
@@ -95,16 +87,9 @@ function formatDate(value?: string | null) {
 }
 
 function getDateInputValue(value?: string | null) {
-  if (!value) {
-    return "";
-  }
-
+  if (!value) return "";
   const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return "";
-  }
-
+  if (Number.isNaN(date.getTime())) return "";
   return date.toISOString().slice(0, 10);
 }
 
@@ -132,11 +117,13 @@ export default function StudentsPage() {
   const [success, setSuccess] = useState("");
 
   const [search, setSearch] = useState("");
+  const [selectedSchoolFilter, setSelectedSchoolFilter] = useState<string>("all");
+  const [sortBy, setSortBy] = useState<SortOption>("alphabetical");
 
   const [showModal, setShowModal] = useState(false);
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
 
-  // Dedicated Delete Confirmation Modal state
+  // Delete Confirmation Modal state
   const [deletingStudent, setDeletingStudent] = useState<Student | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -219,14 +206,18 @@ export default function StudentsPage() {
     loadData();
   }, []);
 
+  // Filter students by search
   const filteredStudents = useMemo(() => {
     const query = search.trim().toLowerCase();
 
-    if (!query) {
-      return students;
-    }
-
     return students.filter((student) => {
+      // School filter
+      if (selectedSchoolFilter !== "all" && student.schoolId !== selectedSchoolFilter) {
+        return false;
+      }
+
+      if (!query) return true;
+
       const schoolName =
         student.school?.name ||
         schools.find((school) => school.id === student.schoolId)?.name ||
@@ -247,7 +238,47 @@ export default function StudentsPage() {
         (student.phone || "").toLowerCase().includes(query)
       );
     });
-  }, [students, schools, standards, search]);
+  }, [students, schools, standards, search, selectedSchoolFilter]);
+
+  // Group students by school and sort alphabetically / by selected sortBy option
+  const schoolGroups = useMemo(() => {
+    const sortedSchools = [...schools].sort((a, b) => naturalCompare(a.name, b.name));
+
+    const groups: { school: School | null; students: Student[] }[] = [];
+
+    for (const school of sortedSchools) {
+      if (selectedSchoolFilter !== "all" && selectedSchoolFilter !== school.id) {
+        continue;
+      }
+
+      const schoolStudents = filteredStudents.filter((s) => s.schoolId === school.id);
+
+      // Only include school if it has matching students, or if not searching
+      if (schoolStudents.length > 0 || !search) {
+        const sorted = sortRecords(
+          schoolStudents,
+          sortBy,
+          (s) => s.name,
+          (s) => s.createdAt || s.id
+        );
+        groups.push({ school, students: sorted });
+      }
+    }
+
+    // Unassigned students
+    const unassigned = filteredStudents.filter((s) => !s.schoolId);
+    if (unassigned.length > 0 && selectedSchoolFilter === "all") {
+      const sorted = sortRecords(
+        unassigned,
+        sortBy,
+        (s) => s.name,
+        (s) => s.createdAt || s.id
+      );
+      groups.push({ school: null, students: sorted });
+    }
+
+    return groups;
+  }, [schools, filteredStudents, sortBy, search, selectedSchoolFilter]);
 
   const schoolCount = useMemo(() => {
     return new Set(students.map((student) => student.schoolId).filter(Boolean))
@@ -261,10 +292,7 @@ export default function StudentsPage() {
   }, [students]);
 
   const modalStandards = useMemo(() => {
-    if (!form.schoolId) {
-      return [];
-    }
-
+    if (!form.schoolId) return [];
     return standards.filter((standard) => standard.schoolId === form.schoolId);
   }, [standards, form.schoolId]);
 
@@ -285,10 +313,7 @@ export default function StudentsPage() {
   }
 
   function closeModal() {
-    if (saving) {
-      return;
-    }
-
+    if (saving) return;
     setShowModal(false);
     setEditingStudent(null);
     setForm(emptyForm);
@@ -463,7 +488,7 @@ export default function StudentsPage() {
             </h1>
 
             <p className="mt-2 max-w-2xl text-sm leading-6 text-stone-500">
-              Manage student rosters across schools, standards, and coaching batches with end-to-end performance tracking.
+              Manage student rosters organized by school and standard with alphabetical sorting and batch allocations.
             </p>
           </div>
 
@@ -539,9 +564,9 @@ export default function StudentsPage() {
           </div>
         </section>
 
-        {/* Search */}
-        <section className="mt-7">
-          <div className="relative">
+        {/* Search & Sort Controls */}
+        <section className="mt-7 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="relative flex-1">
             <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-stone-400">
               ⌕
             </span>
@@ -550,525 +575,455 @@ export default function StudentsPage() {
               type="text"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search students by name, code, school, standard, email or phone..."
+              placeholder="Search students by name, student code, email, phone..."
               className="h-12 w-full rounded-2xl border border-stone-200 bg-white pl-11 pr-4 text-sm text-stone-900 outline-none transition placeholder:text-stone-400 hover:border-stone-300 focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
             />
           </div>
+
+          <div className="flex flex-wrap items-center gap-2.5">
+            {/* School Filter Dropdown */}
+            <select
+              value={selectedSchoolFilter}
+              onChange={(e) => setSelectedSchoolFilter(e.target.value)}
+              className="h-10 rounded-xl border border-stone-200 bg-white px-3 text-xs font-semibold text-stone-700 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
+            >
+              <option value="all">All Schools</option>
+              {schools.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+            </select>
+
+            {/* Sort Control (Alphabetical, Newest, Oldest) */}
+            <SortControl value={sortBy} onChange={setSortBy} />
+          </div>
         </section>
 
-        {/* Student table */}
-        <section className="mt-7 overflow-hidden rounded-3xl border border-stone-200/70 bg-white/80 shadow-sm backdrop-blur-md">
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[1050px]">
-              <thead>
-                <tr className="border-b border-stone-100 text-left">
-                  <th className="px-6 py-4 text-xs font-semibold uppercase tracking-[0.16em] text-stone-500">
-                    Student
-                  </th>
+        {/* Student Grouped-by-School Lists (CHANGE 5: GROUPED BY SCHOOL) */}
+        <section className="mt-7 space-y-7">
+          {loading ? (
+            <div className="flex min-h-80 items-center justify-center rounded-3xl border border-stone-200/70 bg-white/80 p-8 shadow-sm">
+              <div className="text-center">
+                <div className="mx-auto h-8 w-8 animate-spin rounded-full border-4 border-orange-100 border-t-orange-500" />
+                <p className="mt-4 text-sm font-medium text-stone-500">
+                  Loading students directory...
+                </p>
+              </div>
+            </div>
+          ) : schoolGroups.length === 0 || filteredStudents.length === 0 ? (
+            <div className="flex min-h-80 items-center justify-center rounded-3xl border border-stone-200/70 bg-white/80 p-8 shadow-sm">
+              <div className="mx-auto max-w-md text-center">
+                <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-orange-50 text-xl text-orange-500">
+                  {search ? "⌕" : "♟"}
+                </div>
 
-                  <th className="px-5 py-4 text-xs font-semibold uppercase tracking-[0.16em] text-stone-500">
-                    Code
-                  </th>
+                <h3 className="mt-5 text-lg font-semibold tracking-tight text-stone-900">
+                  {search ? "No students found" : "No students yet"}
+                </h3>
 
-                  <th className="px-5 py-4 text-xs font-semibold uppercase tracking-[0.16em] text-stone-500">
-                    School
-                  </th>
+                <p className="mt-2 text-sm leading-6 text-stone-500">
+                  {search
+                    ? "Try refining your search terms or clearing the filter."
+                    : "Add your first student to start managing academic records and batch allocations."}
+                </p>
 
-                  <th className="px-5 py-4 text-xs font-semibold uppercase tracking-[0.16em] text-stone-500">
-                    Standard
-                  </th>
-
-                  <th className="px-5 py-4 text-xs font-semibold uppercase tracking-[0.16em] text-stone-500">
-                    Contact
-                  </th>
-
-                  <th className="px-6 py-4 text-right text-xs font-semibold uppercase tracking-[0.16em] text-stone-500">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-
-              <tbody>
-                {loading ? (
-                  Array.from({ length: 4 }).map((_, index) => (
-                    <tr
-                      key={index}
-                      className="border-b border-stone-100 last:border-b-0"
-                    >
-                      <td className="px-6 py-5">
-                        <div className="flex items-center gap-3">
-                          <div className="h-11 w-11 animate-pulse rounded-xl bg-stone-200" />
-                          <div className="space-y-2">
-                            <div className="h-4 w-32 animate-pulse rounded bg-stone-200" />
-                            <div className="h-3 w-40 animate-pulse rounded bg-stone-100" />
-                          </div>
-                        </div>
-                      </td>
-
-                      <td className="px-5 py-5">
-                        <div className="h-4 w-16 animate-pulse rounded bg-stone-100" />
-                      </td>
-
-                      <td className="px-5 py-5">
-                        <div className="h-4 w-28 animate-pulse rounded bg-stone-100" />
-                      </td>
-
-                      <td className="px-5 py-5">
-                        <div className="h-7 w-20 animate-pulse rounded-xl bg-stone-100" />
-                      </td>
-
-                      <td className="px-5 py-5">
-                        <div className="h-4 w-28 animate-pulse rounded bg-stone-100" />
-                      </td>
-
-                      <td className="px-6 py-5">
-                        <div className="ml-auto h-9 w-32 animate-pulse rounded-xl bg-stone-100" />
-                      </td>
-                    </tr>
-                  ))
-                ) : filteredStudents.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="px-6 py-16">
-                      <div className="mx-auto max-w-md text-center">
-                        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-orange-50 text-xl text-orange-500">
-                          {search ? "⌕" : "♟"}
-                        </div>
-
-                        <h3 className="mt-5 text-lg font-semibold tracking-tight text-stone-900">
-                          {search ? "No students found" : "No students yet"}
-                        </h3>
-
-                        <p className="mt-2 text-sm leading-6 text-stone-500">
-                          {search
-                            ? "Try refining your search terms or clearing the filter."
-                            : "Add your first student to start managing academic records and batch allocations."}
-                        </p>
-
-                        {!search && (
-                          <button
-                            type="button"
-                            onClick={openCreateModal}
-                            className="mt-5 inline-flex items-center justify-center rounded-xl bg-orange-500 px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-orange-200 transition duration-200 hover:-translate-y-0.5 hover:bg-orange-600 active:translate-y-0"
-                          >
-                            + Add Student
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ) : (
-                  filteredStudents.map((student) => {
-                    const schoolName =
-                      student.school?.name ||
-                      schools.find((school) => school.id === student.schoolId)
-                        ?.name ||
-                      "—";
-
-                    const standardName =
-                      student.standard?.name ||
-                      standards.find(
-                        (standard) => standard.id === student.standardId,
-                      )?.name ||
-                      "—";
-
-                    return (
-                      <tr
-                        key={student.id}
-                        className="border-b border-stone-100 transition duration-150 last:border-b-0 hover:bg-orange-50/30"
-                      >
-                        {/* Student */}
-                        <td className="px-6 py-4">
-                          <Link
-                            href={`/app/students/${student.id}`}
-                            className="group flex w-fit items-center gap-3 rounded-xl outline-none transition focus-visible:ring-4 focus-visible:ring-orange-100"
-                          >
-                            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-orange-100 text-sm font-bold text-orange-700 transition duration-200 group-hover:bg-orange-200">
-                              {getInitials(student.name)}
-                            </div>
-
-                            <div className="min-w-0">
-                              <p className="truncate text-sm font-semibold text-stone-900 transition duration-150 group-hover:text-orange-600">
-                                {student.name}
-                              </p>
-
-                              <p className="truncate text-xs text-stone-500">
-                                {student.email || "No email provided"}
-                              </p>
-                            </div>
-                          </Link>
-                        </td>
-
-                        {/* Code */}
-                        <td className="px-5 py-4 text-sm font-medium text-stone-600">
-                          {student.studentCode || "—"}
-                        </td>
-
-                        {/* School */}
-                        <td className="px-5 py-4 text-sm text-stone-600">
-                          {schoolName}
-                        </td>
-
-                        {/* Standard */}
-                        <td className="px-5 py-4">
-                          <span className="inline-flex rounded-xl bg-orange-50 px-2.5 py-1 text-xs font-semibold text-orange-700">
-                            {standardName}
-                          </span>
-                        </td>
-
-                        {/* Contact */}
-                        <td className="px-5 py-4">
-                          <div className="text-sm text-stone-700">
-                            {student.phone || "—"}
-                          </div>
-
-                          {student.dateOfBirth && (
-                            <div className="mt-0.5 text-xs text-stone-400">
-                              DOB: {formatDate(student.dateOfBirth)}
-                            </div>
-                          )}
-                        </td>
-
-                        {/* Actions */}
-                        <td className="px-6 py-4">
-                          <div className="flex items-center justify-end gap-2">
-                            {/* View Details */}
-                            <Link
-                              href={`/app/students/${student.id}`}
-                              className="inline-flex items-center justify-center rounded-xl border border-orange-100 bg-orange-50 px-3.5 py-2 text-xs font-semibold text-orange-600 transition duration-200 hover:-translate-y-0.5 hover:border-orange-200 hover:bg-orange-100 active:translate-y-0"
-                            >
-                              View Details →
-                            </Link>
-
-                            {/* Edit */}
-                            <button
-                              type="button"
-                              onClick={() => openEditModal(student)}
-                              className="rounded-xl border border-orange-200 bg-white px-3.5 py-2 text-xs font-semibold text-orange-700 transition duration-200 hover:-translate-y-0.5 hover:border-orange-300 hover:bg-orange-50 active:translate-y-0"
-                            >
-                              Edit
-                            </button>
-
-                            {/* Delete */}
-                            <button
-                              type="button"
-                              onClick={() => confirmDelete(student)}
-                              className="rounded-xl border border-red-100 bg-red-50 px-3.5 py-2 text-xs font-semibold text-red-600 transition duration-200 hover:-translate-y-0.5 hover:border-red-200 hover:bg-red-100 active:translate-y-0"
-                            >
-                              Delete
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })
+                {!search && (
+                  <button
+                    type="button"
+                    onClick={openCreateModal}
+                    className="mt-5 inline-flex items-center justify-center rounded-xl bg-orange-500 px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-orange-200 transition duration-200 hover:-translate-y-0.5 hover:bg-orange-600 active:translate-y-0"
+                  >
+                    + Add Student
+                  </button>
                 )}
-              </tbody>
-            </table>
-          </div>
+              </div>
+            </div>
+          ) : (
+            schoolGroups.map(({ school, students: schoolStudents }) => {
+              const schoolTitle = school ? school.name : "Other / Unassigned School";
+
+              return (
+                <div
+                  key={school?.id || "unassigned"}
+                  className="overflow-hidden rounded-3xl border border-stone-200/70 bg-white/80 shadow-sm backdrop-blur-md"
+                >
+                  {/* School Group Header */}
+                  <div className="flex items-center justify-between border-b border-stone-100 bg-stone-50/60 px-6 py-4">
+                    <div className="flex items-center gap-2.5">
+                      <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-orange-100 text-xs font-bold text-orange-700">
+                        🏫
+                      </span>
+                      <h3 className="text-base font-bold text-stone-900">
+                        {schoolTitle}
+                      </h3>
+                    </div>
+
+                    <span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-stone-600 border border-stone-200 shadow-2xs">
+                      {schoolStudents.length} student{schoolStudents.length === 1 ? "" : "s"}
+                    </span>
+                  </div>
+
+                  {schoolStudents.length === 0 ? (
+                    <div className="p-8 text-center text-xs text-stone-400">
+                      No students enrolled under this school.
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full min-w-[950px]">
+                        <thead>
+                          <tr className="border-b border-stone-100 text-left text-[11px] font-semibold uppercase tracking-[0.16em] text-stone-400 bg-white">
+                            <th className="px-6 py-3.5">Student</th>
+                            <th className="px-5 py-3.5">Student ID</th>
+                            <th className="px-5 py-3.5">Standard</th>
+                            <th className="px-5 py-3.5">Contact</th>
+                            <th className="px-6 py-3.5 text-right">Actions</th>
+                          </tr>
+                        </thead>
+
+                        <tbody className="divide-y divide-stone-100 bg-white">
+                          {schoolStudents.map((student) => {
+                            const standardName =
+                              student.standard?.name ||
+                              standards.find(
+                                (standard) => standard.id === student.standardId,
+                              )?.name ||
+                              "—";
+
+                            return (
+                              <tr
+                                key={student.id}
+                                className="transition duration-150 hover:bg-orange-50/30"
+                              >
+                                {/* Student Name (Primary) */}
+                                <td className="px-6 py-4">
+                                  <Link
+                                    href={`/app/students/${student.id}`}
+                                    className="group flex w-fit items-center gap-3 rounded-xl outline-none transition"
+                                  >
+                                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-orange-100 text-xs font-bold text-orange-700 transition duration-200 group-hover:bg-orange-200">
+                                      {getInitials(student.name)}
+                                    </div>
+
+                                    <div className="min-w-0">
+                                      <p className="truncate text-sm font-bold text-stone-900 transition duration-150 group-hover:text-orange-600">
+                                        {student.name}
+                                      </p>
+                                      <p className="truncate text-xs text-stone-400">
+                                        {student.email || "No email"}
+                                      </p>
+                                    </div>
+                                  </Link>
+                                </td>
+
+                                {/* Student ID */}
+                                <td className="px-5 py-4 font-mono text-xs font-medium text-stone-600">
+                                  {student.studentCode || `STU-${student.id.slice(0, 5)}`}
+                                </td>
+
+                                {/* Standard */}
+                                <td className="px-5 py-4">
+                                  <span className="inline-flex rounded-lg bg-orange-50 px-2.5 py-1 text-xs font-semibold text-orange-700">
+                                    {standardName}
+                                  </span>
+                                </td>
+
+                                {/* Contact */}
+                                <td className="px-5 py-4 text-xs text-stone-600">
+                                  <div>{student.phone || "—"}</div>
+                                  {student.dateOfBirth && (
+                                    <div className="mt-0.5 text-[11px] text-stone-400">
+                                      DOB: {formatDate(student.dateOfBirth)}
+                                    </div>
+                                  )}
+                                </td>
+
+                                {/* Actions */}
+                                <td className="px-6 py-4">
+                                  <div className="flex items-center justify-end gap-2">
+                                    <Link
+                                      href={`/app/students/${student.id}`}
+                                      className="inline-flex items-center justify-center rounded-xl border border-orange-100 bg-orange-50 px-3 py-1.5 text-xs font-semibold text-orange-600 transition hover:bg-orange-100"
+                                    >
+                                      View
+                                    </Link>
+
+                                    <button
+                                      type="button"
+                                      onClick={() => openEditModal(student)}
+                                      className="rounded-xl border border-stone-200 bg-white px-3 py-1.5 text-xs font-semibold text-stone-700 transition hover:bg-stone-50"
+                                    >
+                                      Edit
+                                    </button>
+
+                                    <button
+                                      type="button"
+                                      onClick={() => confirmDelete(student)}
+                                      className="rounded-xl border border-red-100 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-600 transition hover:bg-red-100"
+                                    >
+                                      Delete
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              );
+            })
+          )}
         </section>
       </div>
 
-      {/* Add / Edit Student Modal */}
-      {showModal && (
-        <div
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-stone-950/45 px-4 py-6 backdrop-blur-sm"
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget) {
-              closeModal();
-            }
-          }}
-        >
-          <div className="flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-3xl border border-orange-100 bg-[#fffdf9] shadow-2xl">
-            {/* Modal header */}
-            <div className="flex items-start justify-between gap-4 border-b border-stone-100 px-6 py-5 sm:px-7">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-orange-600">
-                  Student Management
-                </p>
+      {/* ======================================================
+          ADD / EDIT STUDENT MODAL (CHANGE 2 FIXED MODAL)
+      ====================================================== */}
+      <Modal
+        isOpen={showModal}
+        onClose={closeModal}
+        title={editingStudent ? "Edit Student" : "Add Student"}
+        badge="Student Management"
+        description={
+          editingStudent
+            ? "Update the student's personal details and standard mapping."
+            : "Add a new student to your institute directory."
+        }
+        maxWidth="2xl"
+        footer={
+          <>
+            <button
+              type="button"
+              onClick={closeModal}
+              disabled={saving}
+              className="rounded-xl border border-stone-200 bg-white px-5 py-2.5 text-sm font-semibold text-stone-600 transition hover:border-stone-300 hover:bg-stone-50 disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              form="student-form"
+              disabled={saving}
+              className="rounded-xl bg-orange-500 px-6 py-2.5 text-sm font-semibold text-white shadow-md shadow-orange-200 transition duration-150 hover:-translate-y-0.5 hover:bg-orange-600 active:translate-y-0 disabled:opacity-60"
+            >
+              {saving
+                ? "Saving..."
+                : editingStudent
+                  ? "Save Changes"
+                  : "Add Student"}
+            </button>
+          </>
+        }
+      >
+        <form id="student-form" onSubmit={handleSubmit}>
+          {error && (
+            <div className="mb-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+              {error}
+            </div>
+          )}
 
-                <h2 className="mt-1 text-lg font-semibold tracking-tight text-stone-900">
-                  {editingStudent ? "Edit Student" : "Add Student"}
-                </h2>
-
-                <p className="mt-1 text-sm text-stone-500">
-                  {editingStudent
-                    ? "Update the student's personal details and standard mapping."
-                    : "Add a new student to your institute directory."}
-                </p>
-              </div>
-
-              <button
-                type="button"
-                onClick={closeModal}
-                disabled={saving}
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-stone-200 text-stone-500 transition hover:border-orange-200 hover:bg-orange-50 hover:text-orange-600 disabled:cursor-not-allowed disabled:opacity-50"
+          <div className="grid gap-5 sm:grid-cols-2">
+            {/* Name */}
+            <div className="sm:col-span-2">
+              <label
+                htmlFor="student-name"
+                className="text-xs font-semibold text-stone-700"
               >
-                ✕
-              </button>
+                Student Name *
+              </label>
+              <input
+                id="student-name"
+                type="text"
+                value={form.name}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    name: event.target.value,
+                  }))
+                }
+                placeholder="e.g. Rahul Sharma"
+                className="mt-2 h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-900 outline-none transition placeholder:text-stone-400 focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
+                required
+              />
             </div>
 
-            {/* Modal body */}
-            <form onSubmit={handleSubmit} className="overflow-y-auto">
-              <div className="px-6 py-6 sm:px-7">
-                {error && (
-                  <div className="mb-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
-                    {error}
-                  </div>
-                )}
+            {/* Student Code */}
+            <div>
+              <label
+                htmlFor="student-code"
+                className="text-xs font-semibold text-stone-700"
+              >
+                Student Code
+              </label>
+              <input
+                id="student-code"
+                type="text"
+                value={form.studentCode}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    studentCode: event.target.value,
+                  }))
+                }
+                placeholder="e.g. STU-001"
+                className="mt-2 h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-900 outline-none transition placeholder:text-stone-400 focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
+              />
+            </div>
 
-                <div className="grid gap-5 sm:grid-cols-2">
-                  {/* Name */}
-                  <div className="sm:col-span-2">
-                    <label
-                      htmlFor="student-name"
-                      className="text-xs font-semibold text-stone-700"
-                    >
-                      Student Name *
-                    </label>
+            {/* DOB */}
+            <div>
+              <label
+                htmlFor="student-dob"
+                className="text-xs font-semibold text-stone-700"
+              >
+                Date of Birth
+              </label>
+              <input
+                id="student-dob"
+                type="date"
+                value={form.dateOfBirth}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    dateOfBirth: event.target.value,
+                  }))
+                }
+                className="mt-2 h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-900 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
+              />
+            </div>
 
-                    <input
-                      id="student-name"
-                      type="text"
-                      value={form.name}
-                      onChange={(event) =>
-                        setForm((current) => ({
-                          ...current,
-                          name: event.target.value,
-                        }))
-                      }
-                      placeholder="e.g. John Doe"
-                      className="mt-2 h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-900 outline-none transition placeholder:text-stone-400 focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
-                    />
-                  </div>
+            {/* Email */}
+            <div>
+              <label
+                htmlFor="student-email"
+                className="text-xs font-semibold text-stone-700"
+              >
+                Email Address
+              </label>
+              <input
+                id="student-email"
+                type="email"
+                value={form.email}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    email: event.target.value,
+                  }))
+                }
+                placeholder="student@example.com"
+                className="mt-2 h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-900 outline-none transition placeholder:text-stone-400 focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
+              />
+            </div>
 
-                  {/* Student Code */}
-                  <div>
-                    <label
-                      htmlFor="student-code"
-                      className="text-xs font-semibold text-stone-700"
-                    >
-                      Student Code
-                    </label>
+            {/* Phone */}
+            <div>
+              <label
+                htmlFor="student-phone"
+                className="text-xs font-semibold text-stone-700"
+              >
+                Phone Number
+              </label>
+              <input
+                id="student-phone"
+                type="tel"
+                value={form.phone}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    phone: event.target.value,
+                  }))
+                }
+                placeholder="Enter phone number"
+                className="mt-2 h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-900 outline-none transition placeholder:text-stone-400 focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
+              />
+            </div>
 
-                    <input
-                      id="student-code"
-                      type="text"
-                      value={form.studentCode}
-                      onChange={(event) =>
-                        setForm((current) => ({
-                          ...current,
-                          studentCode: event.target.value,
-                        }))
-                      }
-                      placeholder="e.g. STU002"
-                      className="mt-2 h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-900 outline-none transition placeholder:text-stone-400 focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
-                    />
-                  </div>
+            {/* School */}
+            <div>
+              <label
+                htmlFor="student-school"
+                className="text-xs font-semibold text-stone-700"
+              >
+                School *
+              </label>
+              <select
+                id="student-school"
+                value={form.schoolId}
+                onChange={(event) =>
+                  handleSchoolChange(event.target.value)
+                }
+                className="mt-2 h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-900 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
+                required
+              >
+                <option value="">Select school</option>
+                {schools.map((school) => (
+                  <option key={school.id} value={school.id}>
+                    {school.name}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-                  {/* DOB */}
-                  <div>
-                    <label
-                      htmlFor="student-dob"
-                      className="text-xs font-semibold text-stone-700"
-                    >
-                      Date of Birth
-                    </label>
-
-                    <input
-                      id="student-dob"
-                      type="date"
-                      value={form.dateOfBirth}
-                      onChange={(event) =>
-                        setForm((current) => ({
-                          ...current,
-                          dateOfBirth: event.target.value,
-                        }))
-                      }
-                      className="mt-2 h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-900 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
-                    />
-                  </div>
-
-                  {/* Email */}
-                  <div>
-                    <label
-                      htmlFor="student-email"
-                      className="text-xs font-semibold text-stone-700"
-                    >
-                      Email Address
-                    </label>
-
-                    <input
-                      id="student-email"
-                      type="email"
-                      value={form.email}
-                      onChange={(event) =>
-                        setForm((current) => ({
-                          ...current,
-                          email: event.target.value,
-                        }))
-                      }
-                      placeholder="student@example.com"
-                      className="mt-2 h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-900 outline-none transition placeholder:text-stone-400 focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
-                    />
-                  </div>
-
-                  {/* Phone */}
-                  <div>
-                    <label
-                      htmlFor="student-phone"
-                      className="text-xs font-semibold text-stone-700"
-                    >
-                      Phone Number
-                    </label>
-
-                    <input
-                      id="student-phone"
-                      type="tel"
-                      value={form.phone}
-                      onChange={(event) =>
-                        setForm((current) => ({
-                          ...current,
-                          phone: event.target.value,
-                        }))
-                      }
-                      placeholder="Enter phone number"
-                      className="mt-2 h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-900 outline-none transition placeholder:text-stone-400 focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
-                    />
-                  </div>
-
-                  {/* School */}
-                  <div>
-                    <label
-                      htmlFor="student-school"
-                      className="text-xs font-semibold text-stone-700"
-                    >
-                      School *
-                    </label>
-
-                    <select
-                      id="student-school"
-                      value={form.schoolId}
-                      onChange={(event) =>
-                        handleSchoolChange(event.target.value)
-                      }
-                      className="mt-2 h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-900 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
-                    >
-                      <option value="">Select school</option>
-                      {schools.map((school) => (
-                        <option key={school.id} value={school.id}>
-                          {school.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Standard */}
-                  <div>
-                    <label
-                      htmlFor="student-standard"
-                      className="text-xs font-semibold text-stone-700"
-                    >
-                      Standard *
-                    </label>
-
-                    <select
-                      id="student-standard"
-                      value={form.standardId}
-                      onChange={(event) =>
-                        setForm((current) => ({
-                          ...current,
-                          standardId: event.target.value,
-                        }))
-                      }
-                      disabled={!form.schoolId}
-                      className="mt-2 h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-900 outline-none transition disabled:cursor-not-allowed disabled:bg-stone-50 disabled:text-stone-400 focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
-                    >
-                      <option value="">
-                        {form.schoolId
-                          ? "Select standard"
-                          : "Select school first"}
-                      </option>
-                      {modalStandards.map((standard) => (
-                        <option key={standard.id} value={standard.id}>
-                          {standard.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-              </div>
-
-              {/* Modal footer */}
-              <div className="flex flex-col-reverse gap-3 border-t border-stone-100 bg-white/80 px-6 py-5 sm:flex-row sm:justify-end sm:px-7">
-                <button
-                  type="button"
-                  onClick={closeModal}
-                  disabled={saving}
-                  className="rounded-xl border border-stone-200 bg-white px-5 py-2.5 text-sm font-semibold text-stone-600 transition duration-150 hover:border-stone-300 hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  Cancel
-                </button>
-
-                <button
-                  type="submit"
-                  disabled={saving}
-                  className="rounded-xl bg-orange-500 px-6 py-2.5 text-sm font-semibold text-white shadow-md shadow-orange-200 transition duration-150 hover:-translate-y-0.5 hover:bg-orange-600 active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {saving
-                    ? "Saving..."
-                    : editingStudent
-                      ? "Save Changes"
-                      : "Add Student"}
-                </button>
-              </div>
-            </form>
+            {/* Standard */}
+            <div>
+              <label
+                htmlFor="student-standard"
+                className="text-xs font-semibold text-stone-700"
+              >
+                Standard *
+              </label>
+              <select
+                id="student-standard"
+                value={form.standardId}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    standardId: event.target.value,
+                  }))
+                }
+                disabled={!form.schoolId}
+                className="mt-2 h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-900 outline-none transition disabled:cursor-not-allowed disabled:bg-stone-50 disabled:text-stone-400 focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
+                required
+              >
+                <option value="">
+                  {form.schoolId
+                    ? "Select standard"
+                    : "Select school first"}
+                </option>
+                {modalStandards.map((standard) => (
+                  <option key={standard.id} value={standard.id}>
+                    {standard.name}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
-        </div>
-      )}
+        </form>
+      </Modal>
 
-      {/* Dedicated Delete Confirmation Modal */}
+      {/* ======================================================
+          DELETE CONFIRMATION MODAL
+      ====================================================== */}
       {deletingStudent && (
-        <div
-          className="fixed inset-0 z-[110] flex items-center justify-center bg-stone-950/45 p-4 backdrop-blur-sm"
-          onMouseDown={(e) => {
-            if (e.target === e.currentTarget && !isDeleting) {
-              setDeletingStudent(null);
-            }
-          }}
-        >
-          <div className="w-full max-w-md overflow-hidden rounded-3xl border border-red-100 bg-white p-6 shadow-2xl">
-            <div className="flex items-center gap-4">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-red-50 text-xl font-bold text-red-600">
-                ⚠
-              </div>
-              <div>
-                <h3 className="text-lg font-semibold tracking-tight text-stone-900">
-                  Delete Student
-                </h3>
-                <p className="mt-0.5 text-xs text-stone-500">
-                  Permanent removal confirmation
-                </p>
-              </div>
-            </div>
-
-            <p className="mt-4 text-sm leading-6 text-stone-600">
-              Are you sure you want to delete{" "}
-              <strong className="font-semibold text-stone-900">
-                {deletingStudent.name}
-              </strong>
-              ? This action cannot be undone and will permanently remove all associated enrollment and academic records.
-            </p>
-
-            <div className="mt-6 flex items-center justify-end gap-3">
+        <Modal
+          isOpen={Boolean(deletingStudent)}
+          onClose={() => setDeletingStudent(null)}
+          title="Delete Student Record?"
+          badge="Permanent Removal"
+          maxWidth="md"
+          footer={
+            <>
               <button
                 type="button"
                 onClick={() => setDeletingStudent(null)}
                 disabled={isDeleting}
-                className="rounded-xl border border-stone-200 bg-white px-5 py-2.5 text-xs font-semibold text-stone-600 transition hover:border-stone-300 hover:bg-stone-50 disabled:opacity-60"
+                className="rounded-xl border border-stone-200 bg-white px-5 py-2.5 text-xs font-semibold text-stone-600 transition hover:bg-stone-50 disabled:opacity-60"
               >
                 Cancel
               </button>
-
               <button
                 type="button"
                 onClick={handleDeleteConfirmed}
@@ -1077,9 +1032,17 @@ export default function StudentsPage() {
               >
                 {isDeleting ? "Deleting..." : "Delete Student"}
               </button>
-            </div>
-          </div>
-        </div>
+            </>
+          }
+        >
+          <p className="text-sm leading-6 text-stone-600">
+            Are you sure you want to delete{" "}
+            <strong className="font-semibold text-stone-900">
+              {deletingStudent.name}
+            </strong>
+            ? This action cannot be undone and will permanently remove all associated enrollment and academic records.
+          </p>
+        </Modal>
       )}
     </main>
   );

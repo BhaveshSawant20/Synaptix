@@ -5,6 +5,9 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { API_BASE } from "@/lib/api";
+import Modal from "@/app/app/components/Modal";
+import SortControl from "@/app/app/components/SortControl";
+import { SortOption, sortRecords, naturalCompare } from "@/lib/sorting";
 
 type Subject = {
   id: string;
@@ -50,6 +53,7 @@ export default function TopicsPage() {
 
   const [search, setSearch] = useState("");
   const [subjectFilter, setSubjectFilter] = useState("ALL");
+  const [sortBy, setSortBy] = useState<SortOption>("alphabetical");
 
   const [showModal, setShowModal] = useState(false);
   const [editingTopic, setEditingTopic] = useState<Topic | null>(null);
@@ -144,7 +148,7 @@ export default function TopicsPage() {
   const filteredTopics = useMemo(() => {
     const query = search.trim().toLowerCase();
 
-    return topics.filter((topic) => {
+    const matched = topics.filter((topic) => {
       const matchesSearch =
         !query ||
         topic.name.toLowerCase().includes(query) ||
@@ -157,7 +161,24 @@ export default function TopicsPage() {
 
       return matchesSearch && matchesSubject;
     });
-  }, [topics, search, subjectFilter]);
+
+    if (sortBy === "alphabetical") {
+      return [...matched].sort((a, b) => {
+        if (
+          a.orderIndex !== null &&
+          a.orderIndex !== undefined &&
+          b.orderIndex !== null &&
+          b.orderIndex !== undefined &&
+          a.orderIndex !== b.orderIndex
+        ) {
+          return a.orderIndex - b.orderIndex;
+        }
+        return naturalCompare(a.name, b.name);
+      });
+    }
+
+    return sortRecords(matched, sortBy, (t) => t.name, (t) => t.createdAt);
+  }, [topics, search, subjectFilter, sortBy]);
 
   function openCreateModal() {
     setEditingTopic(null);
@@ -380,7 +401,7 @@ export default function TopicsPage() {
 
         {/* Filters */}
         <section className="rounded-3xl border border-orange-100/70 bg-white/80 p-5 shadow-sm backdrop-blur-xl">
-          <div className="grid gap-4 md:grid-cols-[1fr_260px]">
+          <div className="grid gap-4 md:grid-cols-[1fr_220px_auto] md:items-end">
             <div>
               <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.16em] text-stone-500">
                 Search Topics
@@ -417,6 +438,10 @@ export default function TopicsPage() {
                   </option>
                 ))}
               </select>
+            </div>
+
+            <div className="flex items-center">
+              <SortControl value={sortBy} onChange={setSortBy} />
             </div>
           </div>
         </section>
@@ -555,197 +580,205 @@ export default function TopicsPage() {
       </div>
 
       {/* Create / Edit Modal */}
-      {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/40 px-5 py-8 backdrop-blur-sm">
-          <div className="w-full max-w-lg rounded-3xl border border-orange-100 bg-white p-6 shadow-2xl sm:p-8">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-orange-600">
-                  {editingTopic ? "Edit Topic" : "New Topic"}
-                </p>
-
-                <h2 className="mt-1.5 text-lg font-semibold tracking-tight text-stone-900">
-                  {editingTopic ? "Update Topic" : "Add Topic"}
-                </h2>
-
-                <p className="mt-1 text-sm text-stone-500">
-                  {editingTopic
-                    ? "Update the topic syllabus parameters."
-                    : "Create a new chapter or module topic."}
-                </p>
-              </div>
-
-              <button
-                type="button"
-                onClick={closeModal}
-                disabled={saving}
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-stone-200 bg-stone-50 text-lg text-stone-500 transition hover:border-orange-200 hover:bg-orange-50 hover:text-orange-600 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                ×
-              </button>
-            </div>
-
-            <form
-              onSubmit={handleSubmit}
-              className="mt-6 space-y-4"
+      <Modal
+        isOpen={showModal}
+        onClose={closeModal}
+        title={editingTopic ? "Update Topic" : "Add Topic"}
+        badge={editingTopic ? "Edit Topic" : "New Topic"}
+        description={
+          editingTopic
+            ? "Update the topic syllabus parameters."
+            : "Create a new chapter or module topic."
+        }
+        footer={
+          <>
+            <button
+              type="button"
+              onClick={closeModal}
+              disabled={saving}
+              className="inline-flex items-center justify-center rounded-xl border border-stone-200 bg-white px-5 py-2.5 text-xs font-semibold text-stone-600 transition hover:border-stone-300 hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {!editingTopic && (
-                <div>
-                  <label className="text-xs font-semibold uppercase tracking-[0.16em] text-stone-500">
-                    Subject
-                  </label>
+              Cancel
+            </button>
 
-                  <select
-                    value={form.subjectId}
-                    onChange={(event) =>
-                      setForm((current) => ({
-                        ...current,
-                        subjectId: event.target.value,
-                      }))
-                    }
-                    className="mt-2 h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-900 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
-                    required
+            <button
+              type="button"
+              onClick={() => {
+                const formEl = document.getElementById("topic-form") as HTMLFormElement | null;
+                formEl?.requestSubmit();
+              }}
+              disabled={saving}
+              className="inline-flex items-center justify-center rounded-xl bg-orange-500 px-5 py-2.5 text-xs font-semibold text-white shadow-md shadow-orange-100 transition duration-200 hover:-translate-y-0.5 hover:bg-orange-600 active:translate-y-0 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {saving
+                ? "Saving..."
+                : editingTopic
+                ? "Save Changes"
+                : "Create Topic"}
+            </button>
+          </>
+        }
+      >
+        <form
+          id="topic-form"
+          onSubmit={handleSubmit}
+          className="space-y-4"
+        >
+          {!editingTopic && (
+            <div>
+              <label className="text-xs font-semibold uppercase tracking-[0.16em] text-stone-500">
+                Subject
+              </label>
+
+              <select
+                value={form.subjectId}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    subjectId: event.target.value,
+                  }))
+                }
+                className="mt-2 h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-900 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
+                required
+              >
+                <option value="">
+                  Select Subject
+                </option>
+
+                {subjects.map((subject) => (
+                  <option
+                    key={subject.id}
+                    value={subject.id}
                   >
-                    <option value="">
-                      Select Subject
-                    </option>
+                    {subject.name}
+                    {subject.code
+                      ? ` (${subject.code})`
+                      : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
-                    {subjects.map((subject) => (
-                      <option
-                        key={subject.id}
-                        value={subject.id}
-                      >
-                        {subject.name}
-                        {subject.code
-                          ? ` (${subject.code})`
-                          : ""}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
+          {editingTopic && (
+            <div className="rounded-xl border border-orange-100 bg-orange-50/60 px-4 py-3">
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-orange-600">
+                Subject
+              </p>
 
-              {editingTopic && (
-                <div className="rounded-xl border border-orange-100 bg-orange-50/60 px-4 py-3">
-                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-orange-600">
-                    Subject
-                  </p>
+              <p className="mt-1 text-sm font-semibold text-stone-800">
+                {editingTopic.subject?.name ||
+                  "Unknown Subject"}
+              </p>
+            </div>
+          )}
 
-                  <p className="mt-1 text-sm font-semibold text-stone-800">
-                    {editingTopic.subject?.name ||
-                      "Unknown Subject"}
-                  </p>
-                </div>
-              )}
+          <div>
+            <label className="text-xs font-semibold uppercase tracking-[0.16em] text-stone-500">
+              Topic Name
+            </label>
 
-              <div>
-                <label className="text-xs font-semibold uppercase tracking-[0.16em] text-stone-500">
-                  Topic Name
-                </label>
-
-                <input
-                  type="text"
-                  value={form.name}
-                  onChange={(event) =>
-                    setForm((current) => ({
-                      ...current,
-                      name: event.target.value,
-                    }))
-                  }
-                  placeholder="e.g. Thermodynamics"
-                  required
-                  className="mt-2 h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-900 placeholder:text-stone-400 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs font-semibold uppercase tracking-[0.16em] text-stone-500">
-                  Description
-                </label>
-
-                <textarea
-                  value={form.description}
-                  onChange={(event) =>
-                    setForm((current) => ({
-                      ...current,
-                      description: event.target.value,
-                    }))
-                  }
-                  placeholder="Enter topic outline or syllabus details"
-                  rows={3}
-                  className="mt-2 w-full resize-none rounded-xl border border-stone-200 bg-white px-4 py-3 text-sm text-stone-900 placeholder:text-stone-400 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs font-semibold uppercase tracking-[0.16em] text-stone-500">
-                  Order Index
-                  <span className="ml-1 font-normal lowercase text-stone-400">
-                    (optional sequence)
-                  </span>
-                </label>
-
-                <input
-                  type="number"
-                  min="0"
-                  value={form.orderIndex}
-                  onChange={(event) =>
-                    setForm((current) => ({
-                      ...current,
-                      orderIndex: event.target.value,
-                    }))
-                  }
-                  placeholder="e.g. 1"
-                  className="mt-2 h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-900 placeholder:text-stone-400 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
-                />
-              </div>
-
-              {formError && (
-                <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
-                  {formError}
-                </div>
-              )}
-
-              <div className="flex justify-end gap-3 pt-3">
-                <button
-                  type="button"
-                  onClick={closeModal}
-                  disabled={saving}
-                  className="inline-flex items-center justify-center rounded-xl border border-stone-200 bg-white px-5 py-2.5 text-xs font-semibold text-stone-600 transition hover:border-stone-300 hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  Cancel
-                </button>
-
-                <button
-                  type="submit"
-                  disabled={saving}
-                  className="inline-flex items-center justify-center rounded-xl bg-orange-500 px-5 py-2.5 text-xs font-semibold text-white shadow-md shadow-orange-100 transition duration-200 hover:-translate-y-0.5 hover:bg-orange-600 active:translate-y-0 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {saving
-                    ? "Saving..."
-                    : editingTopic
-                    ? "Save Changes"
-                    : "Create Topic"}
-                </button>
-              </div>
-            </form>
+            <input
+              type="text"
+              value={form.name}
+              onChange={(event) =>
+                setForm((current) => ({
+                  ...current,
+                  name: event.target.value,
+                }))
+              }
+              placeholder="e.g. Thermodynamics"
+              required
+              className="mt-2 h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-900 placeholder:text-stone-400 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
+            />
           </div>
-        </div>
-      )}
+
+          <div>
+            <label className="text-xs font-semibold uppercase tracking-[0.16em] text-stone-500">
+              Description
+            </label>
+
+            <textarea
+              value={form.description}
+              onChange={(event) =>
+                setForm((current) => ({
+                  ...current,
+                  description: event.target.value,
+                }))
+              }
+              placeholder="Enter topic outline or syllabus details"
+              rows={3}
+              className="mt-2 w-full resize-none rounded-xl border border-stone-200 bg-white px-4 py-3 text-sm text-stone-900 placeholder:text-stone-400 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
+            />
+          </div>
+
+          <div>
+            <label className="text-xs font-semibold uppercase tracking-[0.16em] text-stone-500">
+              Order Index
+              <span className="ml-1 font-normal lowercase text-stone-400">
+                (optional sequence)
+              </span>
+            </label>
+
+            <input
+              type="number"
+              min="0"
+              value={form.orderIndex}
+              onChange={(event) =>
+                setForm((current) => ({
+                  ...current,
+                  orderIndex: event.target.value,
+                }))
+              }
+              placeholder="e.g. 1"
+              className="mt-2 h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-900 placeholder:text-stone-400 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
+            />
+          </div>
+
+          {formError && (
+            <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+              {formError}
+            </div>
+          )}
+        </form>
+      </Modal>
 
       {/* Delete Confirmation Modal */}
-      {deleteTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/45 px-5 py-8 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-3xl border border-red-100 bg-white p-6 shadow-2xl sm:p-7">
+      <Modal
+        isOpen={Boolean(deleteTarget)}
+        onClose={() => setDeleteTarget(null)}
+        title="Delete topic?"
+        badge="Warning"
+        description="This action cannot be undone."
+        maxWidth="md"
+        footer={
+          <>
+            <button
+              type="button"
+              onClick={() => setDeleteTarget(null)}
+              disabled={Boolean(deletingId)}
+              className="inline-flex items-center justify-center rounded-xl border border-stone-200 bg-white px-5 py-2.5 text-xs font-semibold text-stone-600 transition hover:border-stone-300 hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              Cancel
+            </button>
+
+            <button
+              type="button"
+              onClick={handleConfirmDelete}
+              disabled={Boolean(deletingId)}
+              className="inline-flex items-center justify-center rounded-xl bg-red-600 px-5 py-2.5 text-xs font-semibold text-white shadow-sm transition hover:bg-red-700 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {deletingId ? "Deleting..." : "Delete Topic"}
+            </button>
+          </>
+        }
+      >
+        {deleteTarget && (
+          <div className="space-y-3">
             <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-red-50 text-xl font-bold text-red-600">
               !
             </div>
-
-            <h2 className="mt-5 text-lg font-semibold tracking-tight text-stone-900">
-              Delete topic?
-            </h2>
-
-            <p className="mt-2 text-sm leading-6 text-stone-500">
+            <p className="text-sm leading-6 text-stone-600">
               Are you sure you want to delete{" "}
               <strong className="font-semibold text-stone-800">
                 {deleteTarget.name}
@@ -754,29 +787,9 @@ export default function TopicsPage() {
                 ? ` under ${deleteTarget.subject.name}`
                 : ""}? This action cannot be undone and will affect teaching progress records.
             </p>
-
-            <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-              <button
-                type="button"
-                onClick={() => setDeleteTarget(null)}
-                disabled={Boolean(deletingId)}
-                className="inline-flex items-center justify-center rounded-xl border border-stone-200 bg-white px-5 py-2.5 text-xs font-semibold text-stone-600 transition hover:border-stone-300 hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                Cancel
-              </button>
-
-              <button
-                type="button"
-                onClick={handleConfirmDelete}
-                disabled={Boolean(deletingId)}
-                className="inline-flex items-center justify-center rounded-xl bg-red-600 px-5 py-2.5 text-xs font-semibold text-white shadow-sm transition hover:bg-red-700 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {deletingId ? "Deleting..." : "Delete Topic"}
-              </button>
-            </div>
           </div>
-        </div>
-      )}
+        )}
+      </Modal>
     </main>
   );
 }

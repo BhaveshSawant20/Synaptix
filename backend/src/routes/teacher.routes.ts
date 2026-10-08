@@ -90,7 +90,7 @@ router.get(
           },
         },
         orderBy: {
-          createdAt: "desc",
+          name: "asc",
         },
       });
 

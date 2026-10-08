@@ -1,8 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { API_BASE } from "@/lib/api";
+import Modal from "../components/Modal";
+import SortControl from "../components/SortControl";
+import { SortOption, sortRecords } from "@/lib/sorting";
 
 type School = {
   id: string;
@@ -39,6 +42,24 @@ export default function SchoolsPage() {
     city: "",
     state: "",
   });
+
+  const [search, setSearch] = useState("");
+  const [sortOption, setSortOption] = useState<SortOption>("alphabetical");
+
+  const processedSchools = useMemo(() => {
+    let result = [...schools];
+    const q = search.trim().toLowerCase();
+    if (q) {
+      result = result.filter(
+        (s) =>
+          s.name.toLowerCase().includes(q) ||
+          (s.city || "").toLowerCase().includes(q) ||
+          (s.state || "").toLowerCase().includes(q) ||
+          (s.address || "").toLowerCase().includes(q)
+      );
+    }
+    return sortRecords(result, sortOption, (s) => s.name, (s) => s.createdAt);
+  }, [schools, search, sortOption]);
 
   async function loadSchools() {
     const token = localStorage.getItem("synaptix_token");
@@ -308,7 +329,7 @@ export default function SchoolsPage() {
 
       {/* Schools Section */}
       <section className="rounded-3xl border border-stone-200/80 bg-white/75 shadow-sm backdrop-blur-xl">
-        <div className="border-b border-stone-200/80 px-6 py-5">
+        <div className="flex flex-col gap-4 border-b border-stone-200/80 px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="text-lg font-semibold tracking-tight text-stone-900">
               Registered schools
@@ -317,6 +338,17 @@ export default function SchoolsPage() {
             <p className="mt-1 text-xs text-stone-500">
               Your institute&apos;s school records.
             </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3">
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search schools..."
+              className="h-10 w-full sm:w-56 rounded-xl border border-stone-200 bg-white px-3.5 text-xs text-stone-900 placeholder:text-stone-400 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
+            />
+            <SortControl value={sortOption} onChange={setSortOption} />
           </div>
         </div>
 
@@ -330,32 +362,35 @@ export default function SchoolsPage() {
                 />
               ))}
             </div>
-          ) : schools.length === 0 ? (
+          ) : processedSchools.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-stone-200 px-5 py-14 text-center">
               <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-orange-50 text-xl text-orange-600">
                 ▣
               </div>
 
               <h3 className="mt-5 text-sm font-semibold text-stone-900">
-                No schools added yet
+                {search ? "No matching schools found" : "No schools added yet"}
               </h3>
 
               <p className="mx-auto mt-2 max-w-sm text-xs leading-5 text-stone-500">
-                Add your first school to start organizing standards, students
-                and academic information.
+                {search
+                  ? "Try adjusting your search criteria."
+                  : "Add your first school to start organizing standards, students and academic information."}
               </p>
 
-              <button
-                type="button"
-                onClick={openAddModal}
-                className="mt-5 rounded-xl bg-orange-500 px-4 py-2.5 text-xs font-semibold text-white shadow-sm shadow-orange-200 transition duration-200 hover:-translate-y-0.5 hover:bg-orange-600 active:translate-y-0 active:scale-[0.98]"
-              >
-                Add your first school
-              </button>
+              {!search && (
+                <button
+                  type="button"
+                  onClick={openAddModal}
+                  className="mt-5 rounded-xl bg-orange-500 px-4 py-2.5 text-xs font-semibold text-white shadow-sm shadow-orange-200 transition duration-200 hover:-translate-y-0.5 hover:bg-orange-600 active:translate-y-0 active:scale-[0.98]"
+                >
+                  Add your first school
+                </button>
+              )}
             </div>
           ) : (
             <div className="space-y-3">
-              {schools.map((school) => (
+              {processedSchools.map((school) => (
                 <div
                   key={school.id}
                   className="group flex flex-col gap-4 rounded-2xl border border-stone-100 bg-stone-50/60 p-4 transition-all duration-200 ease-out hover:-translate-y-0.5 hover:border-orange-100 hover:bg-orange-50/30 hover:shadow-sm sm:flex-row sm:items-center sm:justify-between"
@@ -417,158 +452,144 @@ export default function SchoolsPage() {
       </section>
 
       {/* Add / Edit School Modal */}
-      {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-950/40 px-5 py-8 backdrop-blur-sm">
-          <div className="w-full max-w-lg rounded-3xl border border-white/50 bg-white p-6 shadow-2xl transition-all duration-200 sm:p-8">
-            <div className="mb-6 flex items-start justify-between gap-4">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-orange-600">
-                  {editingSchool ? "Edit school" : "New school"}
-                </p>
+      <Modal
+        isOpen={showModal}
+        onClose={closeModal}
+        badge={editingSchool ? "Edit school" : "New school"}
+        title={editingSchool ? "Update school details" : "Add a school"}
+        description={
+          editingSchool
+            ? "Update the school address and details below."
+            : "Register a new affiliated school to your coaching institute."
+        }
+        maxWidth="lg"
+      >
+        {error && (
+          <div className="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-xs leading-5 text-red-700">
+            {error}
+          </div>
+        )}
 
-                <h2 className="mt-1 text-lg font-semibold tracking-tight text-stone-900">
-                  {editingSchool ? "Update school details" : "Add a school"}
-                </h2>
-              </div>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label
+              htmlFor="school-name"
+              className="mb-2 block text-xs font-semibold text-stone-700"
+            >
+              School name *
+            </label>
 
-              <button
-                type="button"
-                onClick={closeModal}
-                disabled={saving}
-                className="flex h-9 w-9 items-center justify-center rounded-xl bg-stone-100 text-stone-500 transition duration-200 hover:bg-stone-200 hover:text-stone-800 active:scale-95 disabled:opacity-50"
+            <input
+              id="school-name"
+              value={form.name}
+              onChange={(event) =>
+                setForm((current) => ({
+                  ...current,
+                  name: event.target.value,
+                }))
+              }
+              placeholder="e.g. St. Xavier's School"
+              required
+              className="h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-900 outline-none transition duration-200 placeholder:text-stone-400 focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
+            />
+          </div>
+
+          <div>
+            <label
+              htmlFor="school-address"
+              className="mb-2 block text-xs font-semibold text-stone-700"
+            >
+              Address
+            </label>
+
+            <input
+              id="school-address"
+              value={form.address}
+              onChange={(event) =>
+                setForm((current) => ({
+                  ...current,
+                  address: event.target.value,
+                }))
+              }
+              placeholder="School address"
+              className="h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-900 outline-none transition duration-200 placeholder:text-stone-400 focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
+            />
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <label
+                htmlFor="school-city"
+                className="mb-2 block text-xs font-semibold text-stone-700"
               >
-                ×
-              </button>
+                City
+              </label>
+
+              <input
+                id="school-city"
+                value={form.city}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    city: event.target.value,
+                  }))
+                }
+                placeholder="Mumbai"
+                className="h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-900 outline-none transition duration-200 placeholder:text-stone-400 focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
+              />
             </div>
 
-            {error && (
-              <div className="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-xs leading-5 text-red-700">
-                {error}
-              </div>
-            )}
+            <div>
+              <label
+                htmlFor="school-state"
+                className="mb-2 block text-xs font-semibold text-stone-700"
+              >
+                State
+              </label>
 
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <label
-                  htmlFor="school-name"
-                  className="mb-2 block text-xs font-semibold text-stone-700"
-                >
-                  School name *
-                </label>
-
-                <input
-                  id="school-name"
-                  value={form.name}
-                  onChange={(event) =>
-                    setForm((current) => ({
-                      ...current,
-                      name: event.target.value,
-                    }))
-                  }
-                  placeholder="e.g. St. Xavier's School"
-                  required
-                  className="h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-900 outline-none transition duration-200 placeholder:text-stone-400 focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
-                />
-              </div>
-
-              <div>
-                <label
-                  htmlFor="school-address"
-                  className="mb-2 block text-xs font-semibold text-stone-700"
-                >
-                  Address
-                </label>
-
-                <input
-                  id="school-address"
-                  value={form.address}
-                  onChange={(event) =>
-                    setForm((current) => ({
-                      ...current,
-                      address: event.target.value,
-                    }))
-                  }
-                  placeholder="School address"
-                  className="h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-900 outline-none transition duration-200 placeholder:text-stone-400 focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
-                />
-              </div>
-
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div>
-                  <label
-                    htmlFor="school-city"
-                    className="mb-2 block text-xs font-semibold text-stone-700"
-                  >
-                    City
-                  </label>
-
-                  <input
-                    id="school-city"
-                    value={form.city}
-                    onChange={(event) =>
-                      setForm((current) => ({
-                        ...current,
-                        city: event.target.value,
-                      }))
-                    }
-                    placeholder="Mumbai"
-                    className="h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-900 outline-none transition duration-200 placeholder:text-stone-400 focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
-                  />
-                </div>
-
-                <div>
-                  <label
-                    htmlFor="school-state"
-                    className="mb-2 block text-xs font-semibold text-stone-700"
-                  >
-                    State
-                  </label>
-
-                  <input
-                    id="school-state"
-                    value={form.state}
-                    onChange={(event) =>
-                      setForm((current) => ({
-                        ...current,
-                        state: event.target.value,
-                      }))
-                    }
-                    placeholder="Maharashtra"
-                    className="h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-900 outline-none transition duration-200 placeholder:text-stone-400 focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
-                  />
-                </div>
-              </div>
-
-              <div className="flex flex-col-reverse gap-3 pt-3 sm:flex-row sm:justify-end">
-                <button
-                  type="button"
-                  onClick={closeModal}
-                  disabled={saving}
-                  className="h-11 rounded-xl border border-stone-200 bg-white px-5 text-sm font-semibold text-stone-600 transition duration-200 hover:border-stone-300 hover:bg-stone-50 active:translate-y-0 disabled:opacity-50"
-                >
-                  Cancel
-                </button>
-
-                <button
-                  type="submit"
-                  disabled={saving}
-                  className="h-11 rounded-xl bg-orange-500 px-6 text-sm font-semibold text-white shadow-md shadow-orange-200 transition duration-200 hover:-translate-y-0.5 hover:bg-orange-600 active:translate-y-0 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {saving
-                    ? "Saving..."
-                    : editingSchool
-                      ? "Save changes"
-                      : "Add school"}
-                </button>
-              </div>
-            </form>
+              <input
+                id="school-state"
+                value={form.state}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    state: event.target.value,
+                  }))
+                }
+                placeholder="Maharashtra"
+                className="h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-900 outline-none transition duration-200 placeholder:text-stone-400 focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
+              />
+            </div>
           </div>
-        </div>
-      )}
+
+          <div className="flex flex-col-reverse gap-3 pt-3 sm:flex-row sm:justify-end">
+            <button
+              type="button"
+              onClick={closeModal}
+              disabled={saving}
+              className="h-11 rounded-xl border border-stone-200 bg-white px-5 text-sm font-semibold text-stone-600 transition duration-200 hover:border-stone-300 hover:bg-stone-50 active:translate-y-0 disabled:opacity-50"
+            >
+              Cancel
+            </button>
+
+            <button
+              type="submit"
+              disabled={saving}
+              className="h-11 rounded-xl bg-orange-500 px-6 text-sm font-semibold text-white shadow-md shadow-orange-200 transition duration-200 hover:-translate-y-0.5 hover:bg-orange-600 active:translate-y-0 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {saving
+                ? "Saving..."
+                : editingSchool
+                  ? "Save changes"
+                  : "Add school"}
+            </button>
+          </div>
+        </form>
+      </Modal>
 
       {/* Delete Confirmation Modal */}
       {showDeleteModal && deletingSchool && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-950/40 px-5 py-8 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-stone-950/45 px-5 py-8 backdrop-blur-sm">
           <div className="w-full max-w-md rounded-3xl border border-white/50 bg-white p-6 shadow-2xl transition-all duration-200 sm:p-8">
             <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-red-50 text-red-600">
               <svg

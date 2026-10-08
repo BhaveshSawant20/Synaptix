@@ -110,7 +110,7 @@ router.get(
           school: true,
         },
         orderBy: {
-          createdAt: "desc",
+          name: "asc",
         },
       });
 

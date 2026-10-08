@@ -2,7 +2,9 @@
 
 import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useState } from "react";
-
+import Modal from "@/app/app/components/Modal";
+import SortControl from "@/app/app/components/SortControl";
+import { SortOption, sortRecords } from "@/lib/sorting";
 import { API_BASE } from "@/lib/api";
 
 type Teacher = {
@@ -11,6 +13,8 @@ type Teacher = {
   email?: string | null;
   phone?: string | null;
   specialization?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
 };
 
 type TeacherForm = {
@@ -56,6 +60,7 @@ export default function TeachersPage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [search, setSearch] = useState("");
+  const [sortBy, setSortBy] = useState<SortOption>("alphabetical");
 
   const [showModal, setShowModal] = useState(false);
   const [editingTeacher, setEditingTeacher] = useState<Teacher | null>(null);
@@ -107,12 +112,22 @@ export default function TeachersPage() {
     loadTeachers();
   }, []);
 
+  // Sort teachers alphabetically A-Z by default, or by createdAt
+  const sortedTeachers = useMemo(() => {
+    return sortRecords(
+      teachers,
+      sortBy,
+      (t) => t.name,
+      (t) => t.createdAt || t.id
+    );
+  }, [teachers, sortBy]);
+
   const filteredTeachers = useMemo(() => {
     const query = search.trim().toLowerCase();
 
-    if (!query) return teachers;
+    if (!query) return sortedTeachers;
 
-    return teachers.filter((teacher) => {
+    return sortedTeachers.filter((teacher) => {
       const values = [
         teacher.name,
         teacher.email,
@@ -124,7 +139,7 @@ export default function TeachersPage() {
         value?.toLowerCase().includes(query)
       );
     });
-  }, [teachers, search]);
+  }, [sortedTeachers, search]);
 
   function openCreateModal() {
     setEditingTeacher(null);
@@ -153,13 +168,6 @@ export default function TeachersPage() {
     setShowModal(false);
     setEditingTeacher(null);
     setForm(emptyForm);
-  }
-
-  function updateForm(field: keyof TeacherForm, value: string) {
-    setForm((current) => ({
-      ...current,
-      [field]: value,
-    }));
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -347,24 +355,18 @@ export default function TeachersPage() {
 
           <div className="glass rounded-3xl border border-stone-200/70 bg-white/80 p-6 shadow-sm backdrop-blur-md transition duration-200 hover:-translate-y-0.5 hover:shadow-md">
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-stone-400">
-              Active Specializations
+              Filtered Faculty
             </p>
 
             <p className="mt-2 text-3xl font-bold tracking-tight text-stone-900">
-              {
-                new Set(
-                  teachers
-                    .map((teacher) => teacher.specialization?.trim())
-                    .filter(Boolean)
-                ).size
-              }
+              {filteredTeachers.length}
             </p>
           </div>
         </section>
 
-        {/* Search */}
-        <section className="mt-7">
-          <div className="relative">
+        {/* Search & Sort Controls */}
+        <section className="mt-7 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="relative flex-1">
             <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-stone-400">
               ⌕
             </span>
@@ -373,32 +375,32 @@ export default function TeachersPage() {
               type="text"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search teachers by name, email, phone or specialization..."
+              placeholder="Search faculty by name, email, phone, or specialization..."
               className="h-12 w-full rounded-2xl border border-stone-200 bg-white pl-11 pr-4 text-sm text-stone-900 outline-none transition placeholder:text-stone-400 hover:border-stone-300 focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
             />
           </div>
+
+          <div className="flex shrink-0 items-center justify-end">
+            <SortControl value={sortBy} onChange={setSortBy} />
+          </div>
         </section>
 
-        {/* Teachers table */}
+        {/* Teachers Table */}
         <section className="mt-7 overflow-hidden rounded-3xl border border-stone-200/70 bg-white/80 shadow-sm backdrop-blur-md">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1000px]">
+            <table className="w-full min-w-[950px]">
               <thead>
                 <tr className="border-b border-stone-100 text-left">
                   <th className="px-6 py-4 text-xs font-semibold uppercase tracking-[0.16em] text-stone-500">
-                    Teacher
-                  </th>
-
-                  <th className="px-5 py-4 text-xs font-semibold uppercase tracking-[0.16em] text-stone-500">
-                    Email
-                  </th>
-
-                  <th className="px-5 py-4 text-xs font-semibold uppercase tracking-[0.16em] text-stone-500">
-                    Phone
+                    Faculty Member
                   </th>
 
                   <th className="px-5 py-4 text-xs font-semibold uppercase tracking-[0.16em] text-stone-500">
                     Specialization
+                  </th>
+
+                  <th className="px-5 py-4 text-xs font-semibold uppercase tracking-[0.16em] text-stone-500">
+                    Contact
                   </th>
 
                   <th className="px-6 py-4 text-right text-xs font-semibold uppercase tracking-[0.16em] text-stone-500">
@@ -419,12 +421,9 @@ export default function TeachersPage() {
                           <div className="h-11 w-11 animate-pulse rounded-xl bg-stone-200" />
                           <div className="space-y-2">
                             <div className="h-4 w-32 animate-pulse rounded bg-stone-200" />
+                            <div className="h-3 w-40 animate-pulse rounded bg-stone-100" />
                           </div>
                         </div>
-                      </td>
-
-                      <td className="px-5 py-5">
-                        <div className="h-4 w-32 animate-pulse rounded bg-stone-100" />
                       </td>
 
                       <td className="px-5 py-5">
@@ -432,7 +431,7 @@ export default function TeachersPage() {
                       </td>
 
                       <td className="px-5 py-5">
-                        <div className="h-7 w-24 animate-pulse rounded-xl bg-stone-100" />
+                        <div className="h-4 w-28 animate-pulse rounded bg-stone-100" />
                       </td>
 
                       <td className="px-6 py-5">
@@ -442,9 +441,9 @@ export default function TeachersPage() {
                   ))
                 ) : filteredTeachers.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="px-6 py-16">
+                    <td colSpan={4} className="px-6 py-16">
                       <div className="mx-auto max-w-md text-center">
-                        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-orange-50 text-2xl text-orange-500">
+                        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-orange-50 text-xl text-orange-500">
                           {search ? "⌕" : "👨‍🏫"}
                         </div>
 
@@ -455,7 +454,7 @@ export default function TeachersPage() {
                         <p className="mt-2 text-sm leading-6 text-stone-500">
                           {search
                             ? "Try refining your search terms or clearing the filter."
-                            : "Add your first teacher to start assigning instructors to batches and tracking progress."}
+                            : "Add your first teacher to start assigning instructors to cohorts and timetables."}
                         </p>
 
                         {!search && (
@@ -476,68 +475,61 @@ export default function TeachersPage() {
                       key={teacher.id}
                       className="border-b border-stone-100 transition duration-150 last:border-b-0 hover:bg-orange-50/30"
                     >
-                      {/* Teacher */}
                       <td className="px-6 py-4">
                         <Link
                           href={`/app/teachers/${teacher.id}`}
-                          className="group flex w-fit items-center gap-3 rounded-xl outline-none transition focus-visible:ring-4 focus-visible:ring-orange-100"
+                          className="group flex w-fit items-center gap-3 rounded-xl outline-none transition"
                         >
                           <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-orange-100 text-sm font-bold text-orange-700 transition duration-200 group-hover:bg-orange-200">
                             {getInitials(teacher.name)}
                           </div>
 
-                          <p className="font-semibold text-stone-900 transition duration-150 group-hover:text-orange-600">
-                            {teacher.name}
-                          </p>
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-semibold text-stone-900 transition duration-150 group-hover:text-orange-600">
+                              {teacher.name}
+                            </p>
+                            <p className="truncate text-xs text-stone-400">
+                              {teacher.email || "No email"}
+                            </p>
+                          </div>
                         </Link>
                       </td>
 
-                      {/* Email */}
-                      <td className="px-5 py-4 text-sm text-stone-600">
-                        {teacher.email || "—"}
-                      </td>
-
-                      {/* Phone */}
-                      <td className="px-5 py-4 text-sm text-stone-600">
-                        {teacher.phone || "—"}
-                      </td>
-
-                      {/* Specialization */}
                       <td className="px-5 py-4">
                         {teacher.specialization ? (
                           <span className="inline-flex rounded-xl bg-orange-50 px-2.5 py-1 text-xs font-semibold text-orange-700">
                             {teacher.specialization}
                           </span>
                         ) : (
-                          <span className="text-sm text-stone-400">—</span>
+                          <span className="text-xs text-stone-400">—</span>
                         )}
                       </td>
 
-                      {/* Actions */}
+                      <td className="px-5 py-4 text-xs text-stone-600">
+                        {teacher.phone || "—"}
+                      </td>
+
                       <td className="px-6 py-4">
                         <div className="flex items-center justify-end gap-2">
-                          {/* View Details */}
                           <Link
                             href={`/app/teachers/${teacher.id}`}
-                            className="inline-flex items-center justify-center rounded-xl border border-orange-100 bg-orange-50 px-3.5 py-2 text-xs font-semibold text-orange-600 transition duration-200 hover:-translate-y-0.5 hover:border-orange-200 hover:bg-orange-100 active:translate-y-0"
+                            className="inline-flex items-center justify-center rounded-xl border border-orange-100 bg-orange-50 px-3.5 py-2 text-xs font-semibold text-orange-600 transition hover:bg-orange-100"
                           >
-                            View Details →
+                            View Profile →
                           </Link>
 
-                          {/* Edit */}
                           <button
                             type="button"
                             onClick={() => openEditModal(teacher)}
-                            className="rounded-xl border border-orange-200 bg-white px-3.5 py-2 text-xs font-semibold text-orange-700 transition duration-200 hover:-translate-y-0.5 hover:border-orange-300 hover:bg-orange-50 active:translate-y-0"
+                            className="rounded-xl border border-stone-200 bg-white px-3.5 py-2 text-xs font-semibold text-stone-700 transition hover:bg-stone-50"
                           >
                             Edit
                           </button>
 
-                          {/* Delete */}
                           <button
                             type="button"
                             onClick={() => confirmDelete(teacher)}
-                            className="rounded-xl border border-red-100 bg-red-50 px-3.5 py-2 text-xs font-semibold text-red-600 transition duration-200 hover:-translate-y-0.5 hover:border-red-200 hover:bg-red-100 active:translate-y-0"
+                            className="rounded-xl border border-red-100 bg-red-50 px-3.5 py-2 text-xs font-semibold text-red-600 transition hover:bg-red-100"
                           >
                             Delete
                           </button>
@@ -552,191 +544,142 @@ export default function TeachersPage() {
         </section>
       </div>
 
-      {/* Create / Edit Modal */}
-      {showModal && (
-        <div
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-stone-950/45 px-4 py-6 backdrop-blur-sm"
-          onMouseDown={(e) => {
-            if (e.target === e.currentTarget) closeModal();
-          }}
-        >
-          <div className="flex max-h-[92vh] w-full max-w-xl flex-col overflow-hidden rounded-3xl border border-orange-100 bg-[#fffdf9] shadow-2xl">
-            <div className="flex items-start justify-between gap-4 border-b border-stone-100 px-6 py-5 sm:px-7">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-orange-600">
-                  Faculty Management
-                </p>
+      {/* ======================================================
+          ADD / EDIT TEACHER MODAL (CHANGE 2 FIXED MODAL)
+      ====================================================== */}
+      <Modal
+        isOpen={showModal}
+        onClose={closeModal}
+        title={editingTeacher ? "Edit Teacher" : "Add Teacher"}
+        badge="Faculty Directory"
+        description={
+          editingTeacher
+            ? "Update the instructor's personal details and specialization."
+            : "Add a new teaching faculty member to your institute directory."
+        }
+        maxWidth="xl"
+        footer={
+          <>
+            <button
+              type="button"
+              onClick={closeModal}
+              disabled={saving}
+              className="rounded-xl border border-stone-200 bg-white px-5 py-2.5 text-sm font-semibold text-stone-600 transition hover:border-stone-300 hover:bg-stone-50 disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              form="teacher-form"
+              disabled={saving}
+              className="rounded-xl bg-orange-500 px-6 py-2.5 text-sm font-semibold text-white shadow-md shadow-orange-200 transition duration-150 hover:-translate-y-0.5 hover:bg-orange-600 active:translate-y-0 disabled:opacity-60"
+            >
+              {saving
+                ? "Saving..."
+                : editingTeacher
+                  ? "Save Changes"
+                  : "Add Teacher"}
+            </button>
+          </>
+        }
+      >
+        <form id="teacher-form" onSubmit={handleSubmit}>
+          {error && (
+            <div className="mb-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+              {error}
+            </div>
+          )}
 
-                <h2 className="mt-1 text-lg font-semibold tracking-tight text-stone-900">
-                  {editingTeacher ? "Edit Teacher" : "Add Teacher"}
-                </h2>
-
-                <p className="mt-1 text-sm text-stone-500">
-                  {editingTeacher
-                    ? "Update the faculty member's profile and subject specialization."
-                    : "Register a new teacher to your institute directory."}
-                </p>
-              </div>
-
-              <button
-                type="button"
-                onClick={closeModal}
-                disabled={saving}
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-stone-200 text-stone-500 transition hover:border-orange-200 hover:bg-orange-50 hover:text-orange-600 disabled:opacity-50"
-              >
-                ✕
-              </button>
+          <div className="space-y-4">
+            <div>
+              <label className="text-xs font-semibold text-stone-700">
+                Teacher Name *
+              </label>
+              <input
+                type="text"
+                value={form.name}
+                onChange={(e) =>
+                  setForm((cur) => ({ ...cur, name: e.target.value }))
+                }
+                placeholder="e.g. Amit Sharma"
+                className="mt-2 h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-900 outline-none transition placeholder:text-stone-400 focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
+                required
+              />
             </div>
 
-            <form onSubmit={handleSubmit} className="overflow-y-auto">
-              <div className="px-6 py-6 sm:px-7">
-                {error && (
-                  <div className="mb-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
-                    {error}
-                  </div>
-                )}
-
-                <div className="grid gap-5 sm:grid-cols-2">
-                  {/* Name */}
-                  <div className="sm:col-span-2">
-                    <label className="text-xs font-semibold text-stone-700">
-                      Teacher Name *
-                    </label>
-
-                    <input
-                      type="text"
-                      value={form.name}
-                      onChange={(event) =>
-                        updateForm("name", event.target.value)
-                      }
-                      placeholder="e.g. Dr. Rajesh Sharma"
-                      className="mt-2 h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-900 outline-none transition placeholder:text-stone-400 focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
-                    />
-                  </div>
-
-                  {/* Email */}
-                  <div>
-                    <label className="text-xs font-semibold text-stone-700">
-                      Email Address
-                    </label>
-
-                    <input
-                      type="email"
-                      value={form.email}
-                      onChange={(event) =>
-                        updateForm("email", event.target.value)
-                      }
-                      placeholder="teacher@example.com"
-                      className="mt-2 h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-900 outline-none transition placeholder:text-stone-400 focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
-                    />
-                  </div>
-
-                  {/* Phone */}
-                  <div>
-                    <label className="text-xs font-semibold text-stone-700">
-                      Phone Number
-                    </label>
-
-                    <input
-                      type="tel"
-                      value={form.phone}
-                      onChange={(event) =>
-                        updateForm("phone", event.target.value)
-                      }
-                      placeholder="e.g. 9876543210"
-                      className="mt-2 h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-900 outline-none transition placeholder:text-stone-400 focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
-                    />
-                  </div>
-
-                  {/* Specialization */}
-                  <div className="sm:col-span-2">
-                    <label className="text-xs font-semibold text-stone-700">
-                      Specialization / Subjects
-                    </label>
-
-                    <input
-                      type="text"
-                      value={form.specialization}
-                      onChange={(event) =>
-                        updateForm("specialization", event.target.value)
-                      }
-                      placeholder="e.g. Mathematics, Physics, Chemistry"
-                      className="mt-2 h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-900 outline-none transition placeholder:text-stone-400 focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
-                    />
-                  </div>
-                </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <label className="text-xs font-semibold text-stone-700">
+                  Email Address
+                </label>
+                <input
+                  type="email"
+                  value={form.email}
+                  onChange={(e) =>
+                    setForm((cur) => ({ ...cur, email: e.target.value }))
+                  }
+                  placeholder="teacher@example.com"
+                  className="mt-2 h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-900 outline-none transition placeholder:text-stone-400 focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
+                />
               </div>
 
-              <div className="flex flex-col-reverse gap-3 border-t border-stone-100 bg-white/80 px-6 py-5 sm:flex-row sm:justify-end sm:px-7">
-                <button
-                  type="button"
-                  onClick={closeModal}
-                  disabled={saving}
-                  className="rounded-xl border border-stone-200 bg-white px-5 py-2.5 text-sm font-semibold text-stone-600 transition duration-150 hover:border-stone-300 hover:bg-stone-50 disabled:opacity-50"
-                >
-                  Cancel
-                </button>
-
-                <button
-                  type="submit"
-                  disabled={saving}
-                  className="rounded-xl bg-orange-500 px-6 py-2.5 text-sm font-semibold text-white shadow-md shadow-orange-200 transition duration-150 hover:-translate-y-0.5 hover:bg-orange-600 active:translate-y-0 disabled:opacity-60"
-                >
-                  {saving
-                    ? "Saving..."
-                    : editingTeacher
-                    ? "Save Changes"
-                    : "Add Teacher"}
-                </button>
+              <div>
+                <label className="text-xs font-semibold text-stone-700">
+                  Phone Number
+                </label>
+                <input
+                  type="tel"
+                  value={form.phone}
+                  onChange={(e) =>
+                    setForm((cur) => ({ ...cur, phone: e.target.value }))
+                  }
+                  placeholder="e.g. 9876543210"
+                  className="mt-2 h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-900 outline-none transition placeholder:text-stone-400 focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
+                />
               </div>
-            </form>
+            </div>
+
+            <div>
+              <label className="text-xs font-semibold text-stone-700">
+                Specialization / Subject Focus
+              </label>
+              <input
+                type="text"
+                value={form.specialization}
+                onChange={(e) =>
+                  setForm((cur) => ({
+                    ...cur,
+                    specialization: e.target.value,
+                  }))
+                }
+                placeholder="e.g. Mathematics, Physics, Chemistry"
+                className="mt-2 h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-900 outline-none transition placeholder:text-stone-400 focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
+              />
+            </div>
           </div>
-        </div>
-      )}
+        </form>
+      </Modal>
 
-      {/* Dedicated Delete Confirmation Modal */}
+      {/* ======================================================
+          DELETE CONFIRMATION MODAL
+      ====================================================== */}
       {deletingTeacher && (
-        <div
-          className="fixed inset-0 z-[110] flex items-center justify-center bg-stone-950/45 p-4 backdrop-blur-sm"
-          onMouseDown={(e) => {
-            if (e.target === e.currentTarget && !isDeleting) {
-              setDeletingTeacher(null);
-            }
-          }}
-        >
-          <div className="w-full max-w-md overflow-hidden rounded-3xl border border-red-100 bg-white p-6 shadow-2xl">
-            <div className="flex items-center gap-4">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-red-50 text-xl font-bold text-red-600">
-                ⚠
-              </div>
-              <div>
-                <h3 className="text-lg font-semibold tracking-tight text-stone-900">
-                  Delete Teacher
-                </h3>
-                <p className="mt-0.5 text-xs text-stone-500">
-                  Permanent removal confirmation
-                </p>
-              </div>
-            </div>
-
-            <p className="mt-4 text-sm leading-6 text-stone-600">
-              Are you sure you want to delete{" "}
-              <strong className="font-semibold text-stone-900">
-                {deletingTeacher.name}
-              </strong>
-              ? This action cannot be undone and will unassign the teacher from active batches and progress records.
-            </p>
-
-            <div className="mt-6 flex items-center justify-end gap-3">
+        <Modal
+          isOpen={Boolean(deletingTeacher)}
+          onClose={() => setDeletingTeacher(null)}
+          title="Delete Teacher Record?"
+          badge="Permanent Removal"
+          maxWidth="md"
+          footer={
+            <>
               <button
                 type="button"
                 onClick={() => setDeletingTeacher(null)}
                 disabled={isDeleting}
-                className="rounded-xl border border-stone-200 bg-white px-5 py-2.5 text-xs font-semibold text-stone-600 transition hover:border-stone-300 hover:bg-stone-50 disabled:opacity-60"
+                className="rounded-xl border border-stone-200 bg-white px-5 py-2.5 text-xs font-semibold text-stone-600 transition hover:bg-stone-50 disabled:opacity-60"
               >
                 Cancel
               </button>
-
               <button
                 type="button"
                 onClick={handleDeleteConfirmed}
@@ -745,9 +688,17 @@ export default function TeachersPage() {
               >
                 {isDeleting ? "Deleting..." : "Delete Teacher"}
               </button>
-            </div>
-          </div>
-        </div>
+            </>
+          }
+        >
+          <p className="text-sm leading-6 text-stone-600">
+            Are you sure you want to delete{" "}
+            <strong className="font-semibold text-stone-900">
+              {deletingTeacher.name}
+            </strong>
+            ? This action cannot be undone and will remove the teacher from all assigned cohorts and timetables.
+          </p>
+        </Modal>
       )}
     </main>
   );

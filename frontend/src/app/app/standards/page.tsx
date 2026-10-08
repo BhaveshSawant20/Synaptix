@@ -1,9 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 
 import { API_BASE } from "@/lib/api";
+import Modal from "../components/Modal";
+import SortControl from "../components/SortControl";
+import { SortOption, naturalCompare, compareStandards } from "@/lib/sorting";
 
 type School = {
   id: string;
@@ -43,6 +46,48 @@ export default function StandardsPage() {
     name: "",
     schoolId: "",
   });
+
+  const [search, setSearch] = useState("");
+  const [sortOption, setSortOption] = useState<SortOption>("alphabetical");
+
+  const groupedStandards = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const filtered = standards.filter((std) => {
+      if (!q) return true;
+      const schoolName = schools.find((s) => s.id === std.schoolId)?.name || "";
+      return (
+        std.name.toLowerCase().includes(q) ||
+        schoolName.toLowerCase().includes(q)
+      );
+    });
+
+    const sortedSchools = [...schools].sort((a, b) =>
+      naturalCompare(a.name, b.name)
+    );
+
+    return sortedSchools
+      .map((school) => {
+        const schoolStds = filtered.filter((std) => std.schoolId === school.id);
+        if (sortOption === "alphabetical") {
+          schoolStds.sort((a, b) => compareStandards(a.name, b.name));
+        } else if (sortOption === "newest") {
+          schoolStds.sort(
+            (a, b) =>
+              new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+          );
+        } else if (sortOption === "oldest") {
+          schoolStds.sort(
+            (a, b) =>
+              new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+          );
+        }
+        return {
+          school,
+          standards: schoolStds,
+        };
+      })
+      .filter((group) => group.standards.length > 0);
+  }, [standards, schools, search, sortOption]);
 
   async function loadData() {
     const token = localStorage.getItem("synaptix_token");
@@ -120,7 +165,7 @@ export default function StandardsPage() {
     setEditingStandard(null);
     setForm({
       name: "",
-      schoolId: schools[0]?.id ?? "",
+      schoolId: "",
     });
     setError("");
     setShowModal(true);
@@ -382,14 +427,27 @@ export default function StandardsPage() {
 
       {/* Standards List Section */}
       <section className="rounded-3xl border border-stone-200/80 bg-white/75 shadow-sm backdrop-blur-xl">
-        <div className="border-b border-stone-200/80 px-6 py-5">
-          <h2 className="text-lg font-semibold tracking-tight text-stone-900">
-            Registered standards
-          </h2>
+        <div className="flex flex-col gap-4 border-b border-stone-200/80 px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-lg font-semibold tracking-tight text-stone-900">
+              Registered standards
+            </h2>
 
-          <p className="mt-1 text-xs text-stone-500">
-            Academic standards currently configured for your institute.
-          </p>
+            <p className="mt-1 text-xs text-stone-500">
+              Academic standards organized by affiliated school.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3">
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search standards or schools..."
+              className="h-10 w-full sm:w-64 rounded-xl border border-stone-200 bg-white px-3.5 text-xs text-stone-900 placeholder:text-stone-400 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
+            />
+            <SortControl value={sortOption} onChange={setSortOption} />
+          </div>
         </div>
 
         <div className="p-6">
@@ -414,22 +472,23 @@ export default function StandardsPage() {
                 </div>
               ))}
             </div>
-          ) : standards.length === 0 ? (
+          ) : groupedStandards.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-stone-200 px-5 py-14 text-center">
               <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-orange-50 text-xl text-orange-600">
                 ◇
               </div>
 
               <h3 className="mt-5 text-sm font-semibold text-stone-900">
-                No standards added yet
+                {search ? "No matching standards found" : "No standards added yet"}
               </h3>
 
               <p className="mx-auto mt-2 max-w-sm text-xs leading-5 text-stone-500">
-                Add a standard and associate it with one of your registered
-                schools.
+                {search
+                  ? "Try adjusting your search criteria."
+                  : "Add a standard and associate it with one of your registered schools."}
               </p>
 
-              {schools.length > 0 && (
+              {!search && schools.length > 0 && (
                 <button
                   type="button"
                   onClick={openAddModal}
@@ -440,54 +499,60 @@ export default function StandardsPage() {
               )}
             </div>
           ) : (
-            <div className="space-y-3">
-              {standards.map((standard) => (
-                <div
-                  key={standard.id}
-                  className="group flex flex-col gap-4 rounded-2xl border border-stone-100 bg-stone-50/60 p-4 transition-all duration-200 ease-out hover:-translate-y-0.5 hover:border-orange-100 hover:bg-orange-50/30 hover:shadow-sm sm:flex-row sm:items-center sm:justify-between"
-                >
-                  {/* Standard Information Link */}
-                  <Link
-                    href={`/app/standards/${standard.id}`}
-                    className="flex min-w-0 flex-1 items-center gap-4 rounded-xl outline-none focus-visible:ring-4 focus-visible:ring-orange-100"
-                  >
-                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-orange-100 text-lg font-bold text-orange-700 transition-transform duration-200 ease-out group-hover:scale-105">
-                      {standard.name.charAt(0).toUpperCase()}
-                    </div>
-
-                    <div className="min-w-0">
-                      <h3 className="truncate text-sm font-semibold text-stone-900 transition-colors duration-200 group-hover:text-orange-700">
-                        {standard.name}
+            <div className="space-y-7">
+              {groupedStandards.map((group) => (
+                <div key={group.school.id} className="rounded-2xl border border-stone-200/70 bg-stone-50/40 p-4 sm:p-5">
+                  <div className="mb-3.5 flex items-center justify-between border-b border-stone-200/60 pb-3">
+                    <div className="flex items-center gap-2.5">
+                      <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-orange-100 text-xs font-bold text-orange-700">
+                        ▣
+                      </span>
+                      <h3 className="text-sm font-bold tracking-tight text-stone-900">
+                        {group.school.name}
                       </h3>
-
-                      <p className="mt-1 truncate text-xs text-stone-500">
-                        {getSchoolName(standard)}
-                      </p>
                     </div>
-
-                    <span className="ml-auto hidden shrink-0 rounded-xl border border-orange-100 bg-orange-50 px-3.5 py-2 text-xs font-semibold text-orange-600 transition duration-200 hover:border-orange-200 hover:bg-orange-100 sm:inline-flex">
-                      View Details →
+                    <span className="rounded-full bg-white px-2.5 py-0.5 text-xs font-semibold text-stone-600 border border-stone-200/80 shadow-xs">
+                      {group.standards.length} {group.standards.length === 1 ? "standard" : "standards"}
                     </span>
-                  </Link>
+                  </div>
 
-                  {/* Actions */}
-                  <div className="flex items-center gap-2 sm:opacity-90 sm:transition-opacity sm:group-hover:opacity-100">
-                    <button
-                      type="button"
-                      onClick={() => openEditModal(standard)}
-                      className="rounded-xl border border-orange-200 bg-white px-4 py-2 text-xs font-semibold text-orange-700 transition duration-200 hover:-translate-y-0.5 hover:border-orange-300 hover:bg-orange-50 active:translate-y-0"
-                    >
-                      Edit
-                    </button>
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                    {group.standards.map((standard) => (
+                      <div
+                        key={standard.id}
+                        className="group flex items-center justify-between gap-3 rounded-xl border border-stone-200/90 bg-white p-3.5 shadow-xs transition-all duration-200 hover:-translate-y-0.5 hover:border-orange-200 hover:shadow-sm"
+                      >
+                        <Link
+                          href={`/app/standards/${standard.id}`}
+                          className="min-w-0 flex-1"
+                        >
+                          <h4 className="truncate text-sm font-semibold text-stone-900 group-hover:text-orange-600 transition-colors">
+                            {standard.name}
+                          </h4>
+                          <p className="mt-0.5 text-[11px] text-stone-400">
+                            {group.school.name}
+                          </p>
+                        </Link>
 
-                    <button
-                      type="button"
-                      onClick={() => openDeleteModal(standard)}
-                      disabled={deletingId === standard.id}
-                      className="rounded-xl border border-red-100 bg-red-50 px-4 py-2 text-xs font-semibold text-red-600 transition duration-200 hover:-translate-y-0.5 hover:border-red-200 hover:bg-red-100 disabled:opacity-60 active:translate-y-0"
-                    >
-                      Delete
-                    </button>
+                        <div className="flex shrink-0 items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => openEditModal(standard)}
+                            className="rounded-lg border border-stone-200 bg-stone-50 px-2.5 py-1 text-xs font-medium text-stone-700 hover:border-orange-200 hover:bg-orange-50 hover:text-orange-700 transition"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => openDeleteModal(standard)}
+                            disabled={deletingId === standard.id}
+                            className="rounded-lg border border-red-100 bg-red-50 px-2.5 py-1 text-xs font-medium text-red-600 hover:bg-red-100 transition disabled:opacity-50"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
               ))}
@@ -496,123 +561,107 @@ export default function StandardsPage() {
         </div>
       </section>
 
-      {/* Add / Edit Modal */}
-      {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-950/40 px-5 py-8 backdrop-blur-sm">
-          <div className="w-full max-w-lg rounded-3xl border border-white/50 bg-white p-6 shadow-2xl transition-all duration-200 sm:p-8">
-            <div className="mb-6 flex items-start justify-between gap-4">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-orange-600">
-                  {editingStandard ? "Edit standard" : "New standard"}
-                </p>
-
-                <h2 className="mt-1 text-lg font-semibold tracking-tight text-stone-900">
-                  {editingStandard
-                    ? "Update standard details"
-                    : "Add a standard"}
-                </h2>
-              </div>
-
-              <button
-                type="button"
-                onClick={closeModal}
-                disabled={saving}
-                className="flex h-9 w-9 items-center justify-center rounded-xl bg-stone-100 text-stone-500 transition duration-200 hover:bg-stone-200 hover:text-stone-800 active:scale-95 disabled:opacity-50"
-              >
-                ×
-              </button>
-            </div>
-
-            {error && (
-              <div className="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-xs leading-5 text-red-700">
-                {error}
-              </div>
-            )}
-
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <label
-                  htmlFor="standard-school"
-                  className="mb-2 block text-xs font-semibold text-stone-700"
-                >
-                  School *
-                </label>
-
-                <select
-                  id="standard-school"
-                  value={form.schoolId}
-                  onChange={(event) =>
-                    setForm((current) => ({
-                      ...current,
-                      schoolId: event.target.value,
-                    }))
-                  }
-                  required
-                  className="h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-900 outline-none transition duration-200 focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
-                >
-                  <option value="">Select a school</option>
-
-                  {schools.map((school) => (
-                    <option key={school.id} value={school.id}>
-                      {school.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label
-                  htmlFor="standard-name"
-                  className="mb-2 block text-xs font-semibold text-stone-700"
-                >
-                  Standard name *
-                </label>
-
-                <input
-                  id="standard-name"
-                  value={form.name}
-                  onChange={(event) =>
-                    setForm((current) => ({
-                      ...current,
-                      name: event.target.value,
-                    }))
-                  }
-                  placeholder="e.g. Class 10"
-                  required
-                  className="h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-900 outline-none transition duration-200 placeholder:text-stone-400 focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
-                />
-              </div>
-
-              <div className="flex flex-col-reverse gap-3 pt-3 sm:flex-row sm:justify-end">
-                <button
-                  type="button"
-                  onClick={closeModal}
-                  disabled={saving}
-                  className="h-11 rounded-xl border border-stone-200 bg-white px-5 text-sm font-semibold text-stone-600 transition duration-200 hover:border-stone-300 hover:bg-stone-50 active:translate-y-0 disabled:opacity-50"
-                >
-                  Cancel
-                </button>
-
-                <button
-                  type="submit"
-                  disabled={saving || schools.length === 0}
-                  className="h-11 rounded-xl bg-orange-500 px-6 text-sm font-semibold text-white shadow-md shadow-orange-200 transition duration-200 hover:-translate-y-0.5 hover:bg-orange-600 active:translate-y-0 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {saving
-                    ? "Saving..."
-                    : editingStandard
-                      ? "Save changes"
-                      : "Add standard"}
-                </button>
-              </div>
-            </form>
+      {/* Add / Edit Standard Modal */}
+      <Modal
+        isOpen={showModal}
+        onClose={closeModal}
+        badge={editingStandard ? "Edit standard" : "New standard"}
+        title={editingStandard ? "Update standard details" : "Add a standard"}
+        description={
+          editingStandard
+            ? "Update the standard name and affiliated school."
+            : "Add a new standard under one of your registered schools."
+        }
+        maxWidth="lg"
+      >
+        {error && (
+          <div className="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-xs leading-5 text-red-700">
+            {error}
           </div>
-        </div>
-      )}
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label
+              htmlFor="standard-school"
+              className="mb-2 block text-xs font-semibold text-stone-700"
+            >
+              School *
+            </label>
+
+            <select
+              id="standard-school"
+              value={form.schoolId}
+              onChange={(event) =>
+                setForm((current) => ({
+                  ...current,
+                  schoolId: event.target.value,
+                }))
+              }
+              required
+              className="h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-900 outline-none transition duration-200 focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
+            >
+              <option value="">Select a School</option>
+
+              {schools.map((school) => (
+                <option key={school.id} value={school.id}>
+                  {school.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label
+              htmlFor="standard-name"
+              className="mb-2 block text-xs font-semibold text-stone-700"
+            >
+              Standard name *
+            </label>
+
+            <input
+              id="standard-name"
+              value={form.name}
+              onChange={(event) =>
+                setForm((current) => ({
+                  ...current,
+                  name: event.target.value,
+                }))
+              }
+              placeholder="e.g. Class 10"
+              required
+              className="h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-900 outline-none transition duration-200 placeholder:text-stone-400 focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
+            />
+          </div>
+
+          <div className="flex flex-col-reverse gap-3 pt-3 sm:flex-row sm:justify-end">
+            <button
+              type="button"
+              onClick={closeModal}
+              disabled={saving}
+              className="h-11 rounded-xl border border-stone-200 bg-white px-5 text-sm font-semibold text-stone-600 transition duration-200 hover:border-stone-300 hover:bg-stone-50 active:translate-y-0 disabled:opacity-50"
+            >
+              Cancel
+            </button>
+
+            <button
+              type="submit"
+              disabled={saving || schools.length === 0}
+              className="h-11 rounded-xl bg-orange-500 px-6 text-sm font-semibold text-white shadow-md shadow-orange-200 transition duration-200 hover:-translate-y-0.5 hover:bg-orange-600 active:translate-y-0 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {saving
+                ? "Saving..."
+                : editingStandard
+                  ? "Save changes"
+                  : "Add standard"}
+            </button>
+          </div>
+        </form>
+      </Modal>
 
       {/* Delete Confirmation Modal */}
       {showDeleteModal && deletingStandard && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-950/40 px-5 py-8 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-stone-950/45 px-5 py-8 backdrop-blur-sm">
           <div className="w-full max-w-md rounded-3xl border border-white/50 bg-white p-6 shadow-2xl transition-all duration-200 sm:p-8">
             <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-red-50 text-red-600">
               <svg

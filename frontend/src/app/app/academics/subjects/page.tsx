@@ -17,6 +17,9 @@ type SubjectForm = {
 };
 
 import { API_URL } from "@/lib/api";
+import Modal from "@/app/app/components/Modal";
+import SortControl from "@/app/app/components/SortControl";
+import { SortOption, sortRecords } from "@/lib/sorting";
 
 export default function SubjectsPage() {
   const router = useRouter();
@@ -27,6 +30,7 @@ export default function SubjectsPage() {
 
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
+  const [sortBy, setSortBy] = useState<SortOption>("alphabetical");
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingSubject, setEditingSubject] = useState<Subject | null>(null);
@@ -40,17 +44,17 @@ export default function SubjectsPage() {
   const filteredSubjects = useMemo(() => {
     const query = search.trim().toLowerCase();
 
-    if (!query) {
-      return subjects;
-    }
+    const base = !query
+      ? subjects
+      : subjects.filter((subject) => {
+          return (
+            subject.name.toLowerCase().includes(query) ||
+            (subject.code ?? "").toLowerCase().includes(query)
+          );
+        });
 
-    return subjects.filter((subject) => {
-      return (
-        subject.name.toLowerCase().includes(query) ||
-        (subject.code ?? "").toLowerCase().includes(query)
-      );
-    });
-  }, [subjects, search]);
+    return sortRecords(base, sortBy, (s) => s.name, (s) => s.createdAt);
+  }, [subjects, search, sortBy]);
 
   async function loadSubjects() {
     try {
@@ -315,9 +319,9 @@ export default function SubjectsPage() {
           </div>
         )}
 
-        {/* Search */}
-        <div className="mb-6 rounded-2xl border border-orange-100/70 bg-white/80 p-4 shadow-sm backdrop-blur-xl">
-          <div className="relative">
+        {/* Search & Sort */}
+        <div className="mb-6 flex flex-col gap-3 rounded-2xl border border-orange-100/70 bg-white/80 p-4 shadow-sm backdrop-blur-xl sm:flex-row sm:items-center sm:justify-between">
+          <div className="relative flex-1">
             <input
               type="text"
               value={search}
@@ -336,6 +340,8 @@ export default function SubjectsPage() {
               </button>
             )}
           </div>
+
+          <SortControl value={sortBy} onChange={setSortBy} />
         </div>
 
         {/* Subjects Table */}
@@ -466,124 +472,129 @@ export default function SubjectsPage() {
       </div>
 
       {/* Add / Edit Modal */}
-      {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/40 px-5 py-8 backdrop-blur-sm">
-          <div className="w-full max-w-lg rounded-3xl border border-orange-100 bg-white p-6 shadow-2xl sm:p-8">
-            <div className="mb-6 flex items-start justify-between gap-4">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-orange-600">
-                  {editingSubject ? "Edit Subject" : "New Subject"}
-                </p>
+      <Modal
+        isOpen={isModalOpen}
+        onClose={closeModal}
+        title={editingSubject ? "Update Subject" : "Add a Subject"}
+        badge={editingSubject ? "Edit Subject" : "New Subject"}
+        description={
+          editingSubject
+            ? "Update the subject details below."
+            : "Add a subject to your institute's academic structure."
+        }
+        footer={
+          <>
+            <button
+              type="button"
+              onClick={closeModal}
+              disabled={saving}
+              className="inline-flex items-center justify-center rounded-xl border border-stone-200 bg-white px-5 py-2.5 text-xs font-semibold text-stone-600 transition hover:border-stone-300 hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              Cancel
+            </button>
 
-                <h2 className="mt-1.5 text-lg font-semibold tracking-tight text-stone-900">
-                  {editingSubject
-                    ? "Update Subject"
-                    : "Add a Subject"}
-                </h2>
+            <button
+              type="button"
+              onClick={(e) => {
+                const formEl = document.getElementById("subject-form") as HTMLFormElement | null;
+                formEl?.requestSubmit();
+              }}
+              disabled={saving}
+              className="inline-flex items-center justify-center rounded-xl bg-orange-500 px-5 py-2.5 text-xs font-semibold text-white shadow-md shadow-orange-100 transition duration-200 hover:-translate-y-0.5 hover:bg-orange-600 active:translate-y-0 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {saving
+                ? editingSubject
+                  ? "Updating..."
+                  : "Adding..."
+                : editingSubject
+                  ? "Update Subject"
+                  : "Add Subject"}
+            </button>
+          </>
+        }
+      >
+        <form id="subject-form" onSubmit={handleSubmit} className="space-y-5">
+          <div>
+            <label className="text-xs font-semibold uppercase tracking-[0.16em] text-stone-500">
+              Subject Name
+            </label>
 
-                <p className="mt-1 text-sm text-stone-500">
-                  {editingSubject
-                    ? "Update the subject details below."
-                    : "Add a subject to your institute's academic structure."}
-                </p>
-              </div>
-
-              <button
-                type="button"
-                onClick={closeModal}
-                disabled={saving}
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-stone-200 bg-stone-50 text-lg text-stone-500 transition hover:border-orange-200 hover:bg-orange-50 hover:text-orange-600 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                ×
-              </button>
-            </div>
-
-            <form onSubmit={handleSubmit} className="space-y-5">
-              <div>
-                <label className="text-xs font-semibold uppercase tracking-[0.16em] text-stone-500">
-                  Subject Name
-                </label>
-
-                <input
-                  type="text"
-                  value={form.name}
-                  onChange={(event) =>
-                    setForm((current) => ({
-                      ...current,
-                      name: event.target.value,
-                    }))
-                  }
-                  placeholder="e.g. Physics"
-                  autoFocus
-                  required
-                  className="mt-2 h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-900 placeholder:text-stone-400 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs font-semibold uppercase tracking-[0.16em] text-stone-500">
-                  Subject Code
-                  <span className="ml-1 font-normal lowercase text-stone-400">
-                    (optional)
-                  </span>
-                </label>
-
-                <input
-                  type="text"
-                  value={form.code}
-                  onChange={(event) =>
-                    setForm((current) => ({
-                      ...current,
-                      code: event.target.value,
-                    }))
-                  }
-                  placeholder="e.g. PHY"
-                  className="mt-2 h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm uppercase text-stone-900 placeholder:normal-case placeholder:text-stone-400 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
-                />
-              </div>
-
-              <div className="flex justify-end gap-3 pt-3">
-                <button
-                  type="button"
-                  onClick={closeModal}
-                  disabled={saving}
-                  className="inline-flex items-center justify-center rounded-xl border border-stone-200 bg-white px-5 py-2.5 text-xs font-semibold text-stone-600 transition hover:border-stone-300 hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  Cancel
-                </button>
-
-                <button
-                  type="submit"
-                  disabled={saving}
-                  className="inline-flex items-center justify-center rounded-xl bg-orange-500 px-5 py-2.5 text-xs font-semibold text-white shadow-md shadow-orange-100 transition duration-200 hover:-translate-y-0.5 hover:bg-orange-600 active:translate-y-0 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {saving
-                    ? editingSubject
-                      ? "Updating..."
-                      : "Adding..."
-                    : editingSubject
-                      ? "Update Subject"
-                      : "Add Subject"}
-                </button>
-              </div>
-            </form>
+            <input
+              type="text"
+              value={form.name}
+              onChange={(event) =>
+                setForm((current) => ({
+                  ...current,
+                  name: event.target.value,
+                }))
+              }
+              placeholder="e.g. Physics"
+              autoFocus
+              required
+              className="mt-2 h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-900 placeholder:text-stone-400 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
+            />
           </div>
-        </div>
-      )}
+
+          <div>
+            <label className="text-xs font-semibold uppercase tracking-[0.16em] text-stone-500">
+              Subject Code
+              <span className="ml-1 font-normal lowercase text-stone-400">
+                (optional)
+              </span>
+            </label>
+
+            <input
+              type="text"
+              value={form.code}
+              onChange={(event) =>
+                setForm((current) => ({
+                  ...current,
+                  code: event.target.value,
+                }))
+              }
+              placeholder="e.g. PHY"
+              className="mt-2 h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm uppercase text-stone-900 placeholder:normal-case placeholder:text-stone-400 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
+            />
+          </div>
+        </form>
+      </Modal>
 
       {/* Delete Confirmation Modal */}
-      {deleteTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/45 px-5 py-8 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-3xl border border-red-100 bg-white p-6 shadow-2xl sm:p-7">
+      <Modal
+        isOpen={Boolean(deleteTarget)}
+        onClose={() => setDeleteTarget(null)}
+        title="Delete subject?"
+        badge="Warning"
+        description="This action cannot be undone."
+        maxWidth="md"
+        footer={
+          <>
+            <button
+              type="button"
+              onClick={() => setDeleteTarget(null)}
+              disabled={Boolean(deletingId)}
+              className="inline-flex items-center justify-center rounded-xl border border-stone-200 bg-white px-5 py-2.5 text-xs font-semibold text-stone-600 transition hover:border-stone-300 hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              Cancel
+            </button>
+
+            <button
+              type="button"
+              onClick={handleConfirmDelete}
+              disabled={Boolean(deletingId)}
+              className="inline-flex items-center justify-center rounded-xl bg-red-600 px-5 py-2.5 text-xs font-semibold text-white shadow-sm transition hover:bg-red-700 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {deletingId ? "Deleting..." : "Delete Subject"}
+            </button>
+          </>
+        }
+      >
+        {deleteTarget && (
+          <div className="space-y-3">
             <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-red-50 text-xl font-bold text-red-600">
               !
             </div>
-
-            <h2 className="mt-5 text-lg font-semibold tracking-tight text-stone-900">
-              Delete subject?
-            </h2>
-
-            <p className="mt-2 text-sm leading-6 text-stone-500">
+            <p className="text-sm leading-6 text-stone-600">
               Are you sure you want to delete{" "}
               <strong className="font-semibold text-stone-800">
                 {deleteTarget.name}
@@ -591,29 +602,9 @@ export default function SubjectsPage() {
               {deleteTarget.code ? ` (${deleteTarget.code})` : ""}? This action
               cannot be undone and will affect topics and assessments linked to this subject.
             </p>
-
-            <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-              <button
-                type="button"
-                onClick={() => setDeleteTarget(null)}
-                disabled={Boolean(deletingId)}
-                className="inline-flex items-center justify-center rounded-xl border border-stone-200 bg-white px-5 py-2.5 text-xs font-semibold text-stone-600 transition hover:border-stone-300 hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                Cancel
-              </button>
-
-              <button
-                type="button"
-                onClick={handleConfirmDelete}
-                disabled={Boolean(deletingId)}
-                className="inline-flex items-center justify-center rounded-xl bg-red-600 px-5 py-2.5 text-xs font-semibold text-white shadow-sm transition hover:bg-red-700 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {deletingId ? "Deleting..." : "Delete Subject"}
-              </button>
-            </div>
           </div>
-        </div>
-      )}
+        )}
+      </Modal>
     </div>
   );
 }

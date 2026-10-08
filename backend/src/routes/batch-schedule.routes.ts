@@ -53,6 +53,41 @@ function dayName(dayOfWeek: number): string {
   return days[dayOfWeek] ?? "Unknown day";
 }
 
+async function enrichSchedulesWithSubjects<T extends { subjectId?: string | null }>(
+  instituteId: string,
+  schedules: T[]
+): Promise<Array<T & { subject: { id: string; name: string; code: string | null } | null }>> {
+  const subjectIds = Array.from(
+    new Set(schedules.map((s) => s.subjectId).filter(Boolean) as string[])
+  );
+
+  const subjects =
+    subjectIds.length > 0
+      ? await prisma.subject.findMany({
+          where: {
+            id: { in: subjectIds },
+            instituteId,
+          },
+          select: { id: true, name: true, code: true },
+        })
+      : [];
+
+  const subjectMap = new Map(subjects.map((sub) => [sub.id, sub]));
+
+  return schedules.map((schedule) => ({
+    ...schedule,
+    subject: schedule.subjectId ? subjectMap.get(schedule.subjectId) ?? null : null,
+  }));
+}
+
+async function enrichScheduleWithSubject<T extends { subjectId?: string | null }>(
+  instituteId: string,
+  schedule: T
+): Promise<T & { subject: { id: string; name: string; code: string | null } | null }> {
+  const [enriched] = await enrichSchedulesWithSubjects(instituteId, [schedule]);
+  return enriched;
+}
+
 // ============================================================
 // POST /
 // CREATE BATCH SCHEDULE
@@ -512,13 +547,19 @@ router.post(
         },
         include: {
           batch: true,
+          teacher: true,
         },
       });
+
+      const enrichedSchedule = await enrichScheduleWithSubject(
+        req.instituteId,
+        schedule
+      );
 
       return res.status(201).json({
         success: true,
         message: "Batch schedule created successfully",
-        schedule,
+        schedule: enrichedSchedule,
       });
     } catch (error) {
       console.error("Creating batch schedule failed:", error);
@@ -555,6 +596,7 @@ router.get(
         },
         include: {
           batch: true,
+          teacher: true,
         },
         orderBy: [
           {
@@ -566,10 +608,15 @@ router.get(
         ],
       });
 
+      const enrichedSchedules = await enrichSchedulesWithSubjects(
+        req.instituteId,
+        schedules
+      );
+
       return res.status(200).json({
         success: true,
-        count: schedules.length,
-        schedules,
+        count: enrichedSchedules.length,
+        schedules: enrichedSchedules,
       });
     } catch (error) {
       console.error("Fetching batch schedules failed:", error);
@@ -627,6 +674,7 @@ router.get(
         },
         include: {
           batch: true,
+          teacher: true,
         },
         orderBy: [
           {
@@ -638,10 +686,15 @@ router.get(
         ],
       });
 
+      const enrichedSchedules = await enrichSchedulesWithSubjects(
+        req.instituteId,
+        schedules
+      );
+
       return res.status(200).json({
         success: true,
-        count: schedules.length,
-        schedules,
+        count: enrichedSchedules.length,
+        schedules: enrichedSchedules,
       });
     } catch (error) {
       console.error("Fetching batch schedules failed:", error);
@@ -702,6 +755,7 @@ router.get(
         },
         include: {
           batch: true,
+          teacher: true,
         },
         orderBy: [
           {
@@ -713,10 +767,15 @@ router.get(
         ],
       });
 
+      const enrichedSchedules = await enrichSchedulesWithSubjects(
+        req.instituteId,
+        schedules
+      );
+
       return res.status(200).json({
         success: true,
-        count: schedules.length,
-        schedules,
+        count: enrichedSchedules.length,
+        schedules: enrichedSchedules,
       });
     } catch (error) {
       console.error("Fetching teacher schedules failed:", error);
@@ -763,6 +822,7 @@ router.get(
         },
         include: {
           batch: true,
+          teacher: true,
         },
       });
 
@@ -773,9 +833,14 @@ router.get(
         });
       }
 
+      const enrichedSchedule = await enrichScheduleWithSubject(
+        req.instituteId,
+        schedule
+      );
+
       return res.status(200).json({
         success: true,
-        schedule,
+        schedule: enrichedSchedule,
       });
     } catch (error) {
       console.error("Fetching batch schedule failed:", error);
@@ -1266,13 +1331,19 @@ router.put(
         },
         include: {
           batch: true,
+          teacher: true,
         },
       });
+
+      const enrichedSchedule = await enrichScheduleWithSubject(
+        req.instituteId,
+        updatedSchedule
+      );
 
       return res.status(200).json({
         success: true,
         message: "Batch schedule updated successfully",
-        schedule: updatedSchedule,
+        schedule: enrichedSchedule,
       });
     } catch (error) {
       console.error("Updating batch schedule failed:", error);

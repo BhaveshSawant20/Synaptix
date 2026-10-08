@@ -3,6 +3,12 @@
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import Modal from "@/app/app/components/Modal";
+import WeeklyTimetable, {
+  TimetableSchedule,
+  formatTimeRange,
+} from "@/app/app/components/WeeklyTimetable";
+import { API_BASE } from "@/lib/api";
 
 type School = {
   id: string;
@@ -95,24 +101,6 @@ type Subject = {
   code?: string | null;
 };
 
-type BatchSchedule = {
-  id: string;
-  batchId: string;
-  teacherId?: string | null;
-  dayOfWeek: number;
-  startTime: string;
-  endTime: string;
-  subjectId?: string | null;
-  room?: string | null;
-  createdAt?: string;
-  batch?: {
-    id: string;
-    name: string;
-  } | null;
-  teacher?: Teacher | null;
-  subject?: Subject | null;
-};
-
 type ScheduleConflict = {
   type: "student" | "teacher" | "batch";
   personName?: string;
@@ -150,8 +138,6 @@ type ScheduleForm = {
   room: string;
 };
 
-import { API_BASE } from "@/lib/api";
-
 const DAYS = [
   { value: "0", label: "Sunday" },
   { value: "1", label: "Monday" },
@@ -166,7 +152,6 @@ function getToken() {
   if (typeof window === "undefined") {
     return "";
   }
-
   return localStorage.getItem("synaptix_token") || "";
 }
 
@@ -175,7 +160,6 @@ async function parseJsonResponse(response: Response) {
 
   if (!contentType.includes("application/json")) {
     const text = await response.text();
-
     throw new Error(
       text || `Request failed with status ${response.status}.`,
     );
@@ -195,14 +179,8 @@ function formatDate(value?: string | null) {
 }
 
 function formatStatus(status: TeachingProgress["status"]) {
-  if (status === "COMPLETED") {
-    return "Completed";
-  }
-
-  if (status === "IN_PROGRESS") {
-    return "In Progress";
-  }
-
+  if (status === "COMPLETED") return "Completed";
+  if (status === "IN_PROGRESS") return "In Progress";
   return "Not Started";
 }
 
@@ -210,78 +188,27 @@ function statusClasses(status: TeachingProgress["status"]) {
   if (status === "COMPLETED") {
     return "border-emerald-200 bg-emerald-50 text-emerald-700";
   }
-
   if (status === "IN_PROGRESS") {
     return "border-orange-200 bg-orange-50 text-orange-700";
   }
-
   return "border-stone-200 bg-stone-50 text-stone-600";
 }
 
 function getDayName(dayOfWeek?: number | null) {
-  if (dayOfWeek == null) {
-    return "—";
-  }
-
+  if (dayOfWeek == null) return "—";
   return DAYS.find((day) => Number(day.value) === dayOfWeek)?.label || "Unknown";
 }
 
-function formatTime(value?: string | null) {
-  if (!value) {
-    return "—";
-  }
-
-  const parts = value.split(":");
-
-  if (parts.length < 2) {
-    return value;
-  }
-
-  const hour = Number(parts[0]);
-  const minute = Number(parts[1]);
-
-  if (Number.isNaN(hour) || Number.isNaN(minute)) {
-    return value;
-  }
-
-  const suffix = hour >= 12 ? "PM" : "AM";
-  const displayHour = hour % 12 || 12;
-
-  return `${displayHour}:${String(minute).padStart(2, "0")} ${suffix}`;
-}
-
-function formatTimeRange(
-  startTime?: string | null,
-  endTime?: string | null,
-) {
-  return `${formatTime(startTime)} – ${formatTime(endTime)}`;
-}
-
-function normalizeScheduleList(data: any): BatchSchedule[] {
-  if (Array.isArray(data?.schedules)) {
-    return data.schedules;
-  }
-
-  if (Array.isArray(data?.batchSchedules)) {
-    return data.batchSchedules;
-  }
-
-  if (Array.isArray(data?.data)) {
-    return data.data;
-  }
-
+function normalizeScheduleList(data: any): TimetableSchedule[] {
+  if (Array.isArray(data?.schedules)) return data.schedules;
+  if (Array.isArray(data?.batchSchedules)) return data.batchSchedules;
+  if (Array.isArray(data?.data)) return data.data;
   return [];
 }
 
 function normalizeSubjectList(data: any): Subject[] {
-  if (Array.isArray(data?.subjects)) {
-    return data.subjects;
-  }
-
-  if (Array.isArray(data?.data)) {
-    return data.data;
-  }
-
+  if (Array.isArray(data?.subjects)) return data.subjects;
+  if (Array.isArray(data?.data)) return data.data;
   return [];
 }
 
@@ -289,11 +216,9 @@ function conflictTitle(code: ConflictModalData["code"]) {
   if (code === "TEACHER_SCHEDULE_CONFLICT") {
     return "Teacher Schedule Conflict";
   }
-
   if (code === "STUDENT_SCHEDULE_CONFLICT") {
     return "Student Schedule Conflict";
   }
-
   return "Batch Schedule Conflict";
 }
 
@@ -301,31 +226,20 @@ function conflictDescription(code: ConflictModalData["code"]) {
   if (code === "TEACHER_SCHEDULE_CONFLICT") {
     return "This teacher is already assigned to another batch during the selected time.";
   }
-
   if (code === "STUDENT_SCHEDULE_CONFLICT") {
     return "One or more students in this batch are already attending another batch during the selected time.";
   }
-
   return "This batch already has another class during the selected time.";
 }
 
 function getConflictExistingLabel(conflict: ScheduleConflict) {
-  if (conflict.existingBatchName) {
-    return conflict.existingBatchName;
-  }
-
-  if (conflict.existingBatchId) {
-    return conflict.existingBatchId;
-  }
-
+  if (conflict.existingBatchName) return conflict.existingBatchName;
+  if (conflict.existingBatchId) return conflict.existingBatchId;
   return "Existing schedule";
 }
 
 function getConflictRequestedLabel(conflict: ScheduleConflict) {
-  if (conflict.newBatchName) {
-    return conflict.newBatchName;
-  }
-
+  if (conflict.newBatchName) return conflict.newBatchName;
   return "This batch";
 }
 
@@ -336,11 +250,9 @@ export default function BatchDetailsPage() {
   const batchId = typeof params?.id === "string" ? params.id : "";
 
   const [batch, setBatch] = useState<Batch | null>(null);
-  const [teachingProgress, setTeachingProgress] = useState<
-    TeachingProgress[]
-  >([]);
+  const [teachingProgress, setTeachingProgress] = useState<TeachingProgress[]>([]);
   const [assessments, setAssessments] = useState<Assessment[]>([]);
-  const [schedules, setSchedules] = useState<BatchSchedule[]>([]);
+  const [schedules, setSchedules] = useState<TimetableSchedule[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
 
   const [loading, setLoading] = useState(true);
@@ -353,12 +265,9 @@ export default function BatchDetailsPage() {
 
   const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [scheduleSaving, setScheduleSaving] = useState(false);
-  const [scheduleDeletingId, setScheduleDeletingId] = useState<string | null>(
-    null,
-  );
+  const [scheduleDeletingId, setScheduleDeletingId] = useState<string | null>(null);
 
-  const [editingSchedule, setEditingSchedule] =
-    useState<BatchSchedule | null>(null);
+  const [editingSchedule, setEditingSchedule] = useState<TimetableSchedule | null>(null);
 
   const [scheduleForm, setScheduleForm] = useState<ScheduleForm>({
     dayOfWeek: "1",
@@ -369,11 +278,15 @@ export default function BatchDetailsPage() {
     room: "",
   });
 
-  const [conflictModal, setConflictModal] =
-    useState<ConflictModalData | null>(null);
+  const [conflictModal, setConflictModal] = useState<ConflictModalData | null>(null);
+  const [deleteScheduleTarget, setDeleteScheduleTarget] = useState<TimetableSchedule | null>(null);
 
-  const [deleteScheduleTarget, setDeleteScheduleTarget] =
-    useState<BatchSchedule | null>(null);
+  // Student removal state
+  const [removingStudentTarget, setRemovingStudentTarget] = useState<{
+    studentId: string;
+    studentName: string;
+  } | null>(null);
+  const [isRemovingStudent, setIsRemovingStudent] = useState(false);
 
   const [editForm, setEditForm] = useState({
     name: "",
@@ -453,7 +366,6 @@ export default function BatchDetailsPage() {
       setShowEditModal(false);
     } catch (err) {
       console.error("Failed to update batch:", err);
-
       setError(
         err instanceof Error ? err.message : "Failed to update batch.",
       );
@@ -511,13 +423,11 @@ export default function BatchDetailsPage() {
           if (a.dayOfWeek !== b.dayOfWeek) {
             return a.dayOfWeek - b.dayOfWeek;
           }
-
           return a.startTime.localeCompare(b.startTime);
         }),
       );
     } catch (err) {
       console.error("Failed to load schedules:", err);
-
       setScheduleError(
         err instanceof Error
           ? err.message
@@ -550,9 +460,7 @@ export default function BatchDetailsPage() {
         return;
       }
 
-      if (!response.ok) {
-        return;
-      }
+      if (!response.ok) return;
 
       const data = await parseJsonResponse(response);
 
@@ -639,13 +547,9 @@ export default function BatchDetailsPage() {
         );
       }
 
-      if (
-        !assessmentsResponse.ok ||
-        !assessmentsData.success
-      ) {
+      if (!assessmentsResponse.ok || !assessmentsData.success) {
         throw new Error(
-          assessmentsData.message ||
-            "Failed to load assessments.",
+          assessmentsData.message || "Failed to load assessments.",
         );
       }
 
@@ -669,7 +573,6 @@ export default function BatchDetailsPage() {
       );
     } catch (err) {
       console.error("Failed to load batch details:", err);
-
       setError(
         err instanceof Error ? err.message : "Failed to load batch.",
       );
@@ -703,24 +606,6 @@ export default function BatchDetailsPage() {
     [teachingProgress],
   );
 
-  const notStartedTopics = useMemo(
-    () =>
-      teachingProgress.filter(
-        (item) => item.status === "NOT_STARTED",
-      ).length,
-    [teachingProgress],
-  );
-
-  const sortedSchedules = useMemo(() => {
-    return [...schedules].sort((a, b) => {
-      if (a.dayOfWeek !== b.dayOfWeek) {
-        return a.dayOfWeek - b.dayOfWeek;
-      }
-
-      return a.startTime.localeCompare(b.startTime);
-    });
-  }, [schedules]);
-
   function resetScheduleForm() {
     setScheduleForm({
       dayOfWeek: "1",
@@ -730,7 +615,6 @@ export default function BatchDetailsPage() {
       subjectId: "",
       room: "",
     });
-
     setEditingSchedule(null);
   }
 
@@ -740,7 +624,7 @@ export default function BatchDetailsPage() {
     setShowScheduleModal(true);
   }
 
-  function openEditScheduleModal(schedule: BatchSchedule) {
+  function openEditScheduleModal(schedule: TimetableSchedule) {
     setEditingSchedule(schedule);
     setScheduleForm({
       dayOfWeek: String(schedule.dayOfWeek),
@@ -755,10 +639,7 @@ export default function BatchDetailsPage() {
   }
 
   function closeScheduleModal() {
-    if (scheduleSaving) {
-      return;
-    }
-
+    if (scheduleSaving) return;
     setShowScheduleModal(false);
     resetScheduleForm();
   }
@@ -781,9 +662,7 @@ export default function BatchDetailsPage() {
       message:
         data.message ||
         "This schedule cannot be created because it conflicts with an existing schedule.",
-      conflicts: Array.isArray(data.conflicts)
-        ? data.conflicts
-        : [],
+      conflicts: Array.isArray(data.conflicts) ? data.conflicts : [],
     });
 
     return true;
@@ -869,11 +748,9 @@ export default function BatchDetailsPage() {
 
       setShowScheduleModal(false);
       resetScheduleForm();
-
       await loadSchedules();
     } catch (err) {
       console.error("Failed to save schedule:", err);
-
       setScheduleError(
         err instanceof Error
           ? err.message
@@ -885,9 +762,7 @@ export default function BatchDetailsPage() {
   }
 
   async function handleDeleteSchedule() {
-    if (!deleteScheduleTarget) {
-      return;
-    }
+    if (!deleteScheduleTarget) return;
 
     const token = getToken();
 
@@ -919,17 +794,13 @@ export default function BatchDetailsPage() {
       const data = await parseJsonResponse(response);
 
       if (!response.ok || !data.success) {
-        throw new Error(
-          data.message || "Failed to delete schedule.",
-        );
+        throw new Error(data.message || "Failed to delete schedule.");
       }
 
       setDeleteScheduleTarget(null);
-
       await loadSchedules();
     } catch (err) {
       console.error("Failed to delete schedule:", err);
-
       setScheduleError(
         err instanceof Error
           ? err.message
@@ -937,6 +808,49 @@ export default function BatchDetailsPage() {
       );
     } finally {
       setScheduleDeletingId(null);
+    }
+  }
+
+  async function handleRemoveStudentConfirmed() {
+    if (!removingStudentTarget) return;
+
+    const token = getToken();
+    if (!token) {
+      window.location.href = "/login";
+      return;
+    }
+
+    try {
+      setIsRemovingStudent(true);
+      const response = await fetch(
+        `${API_BASE}/batches/${batchId}/students/${removingStudentTarget.studentId}`,
+        {
+          method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        },
+      );
+
+      if (response.status === 401) {
+        localStorage.removeItem("synaptix_token");
+        window.location.href = "/login";
+        return;
+      }
+
+      const data = await parseJsonResponse(response);
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || "Failed to remove student.");
+      }
+
+      setRemovingStudentTarget(null);
+      await loadBatchDetails();
+    } catch (err) {
+      console.error("Failed to remove student:", err);
+      alert(err instanceof Error ? err.message : "Failed to remove student.");
+    } finally {
+      setIsRemovingStudent(false);
     }
   }
 
@@ -1032,8 +946,7 @@ export default function BatchDetailsPage() {
                 </p>
 
                 <p className="mt-2 text-sm font-semibold text-stone-800">
-                  {formatDate(batch.startDate)} →{" "}
-                  {formatDate(batch.endDate)}
+                  {formatDate(batch.startDate)} → {formatDate(batch.endDate)}
                 </p>
               </div>
             </div>
@@ -1046,11 +959,9 @@ export default function BatchDetailsPage() {
             <p className="text-xs font-semibold uppercase tracking-[0.14em] text-stone-400">
               Students
             </p>
-
             <p className="mt-3 text-3xl font-bold tracking-tight text-stone-900">
               {students.length}
             </p>
-
             <p className="mt-1 text-xs text-stone-500">
               Assigned to batch
             </p>
@@ -1060,11 +971,9 @@ export default function BatchDetailsPage() {
             <p className="text-xs font-semibold uppercase tracking-[0.14em] text-stone-400">
               Teachers
             </p>
-
             <p className="mt-3 text-3xl font-bold tracking-tight text-stone-900">
               {teachers.length}
             </p>
-
             <p className="mt-1 text-xs text-stone-500">
               Assigned to batch
             </p>
@@ -1072,27 +981,23 @@ export default function BatchDetailsPage() {
 
           <div className="rounded-3xl border border-orange-100/70 bg-white/80 p-5 shadow-sm backdrop-blur-xl transition duration-200 hover:-translate-y-0.5 hover:border-orange-200 hover:shadow-md">
             <p className="text-xs font-semibold uppercase tracking-[0.14em] text-stone-400">
-              Completed
+              Weekly Classes
             </p>
-
-            <p className="mt-3 text-3xl font-bold tracking-tight text-emerald-600">
-              {completedTopics}
+            <p className="mt-3 text-3xl font-bold tracking-tight text-orange-600">
+              {schedules.length}
             </p>
-
             <p className="mt-1 text-xs text-stone-500">
-              Teaching topics
+              Scheduled periods
             </p>
           </div>
 
           <div className="rounded-3xl border border-orange-100/70 bg-white/80 p-5 shadow-sm backdrop-blur-xl transition duration-200 hover:-translate-y-0.5 hover:border-orange-200 hover:shadow-md">
             <p className="text-xs font-semibold uppercase tracking-[0.14em] text-stone-400">
-              In Progress
+              Completed Topics
             </p>
-
-            <p className="mt-3 text-3xl font-bold tracking-tight text-orange-600">
-              {inProgressTopics}
+            <p className="mt-3 text-3xl font-bold tracking-tight text-emerald-600">
+              {completedTopics}
             </p>
-
             <p className="mt-1 text-xs text-stone-500">
               Teaching topics
             </p>
@@ -1102,39 +1007,89 @@ export default function BatchDetailsPage() {
             <p className="text-xs font-semibold uppercase tracking-[0.14em] text-stone-400">
               Assessments
             </p>
-
             <p className="mt-3 text-3xl font-bold tracking-tight text-stone-900">
               {assessments.length}
             </p>
-
             <p className="mt-1 text-xs text-stone-500">
               For this batch
             </p>
           </div>
         </section>
 
-        {/* ASSIGNED STUDENTS */}
+        {/* ============================================================
+            CHANGE 1: POLISHED WEEKLY CLASS TIMETABLE GRID
+        ============================================================ */}
+        <section className="mt-6 overflow-hidden rounded-3xl border border-orange-100/70 bg-white/80 p-6 shadow-sm backdrop-blur-xl sm:p-7">
+          <div className="mb-6 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between border-b border-stone-100 pb-4">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-orange-600">
+                Weekly Class Timetable
+              </p>
+              <h2 className="mt-1 text-xl font-bold tracking-tight text-stone-900">
+                {batch.name} — Schedule
+              </h2>
+              <p className="mt-0.5 text-xs text-stone-500">
+                Day, time, subject, and instructor schedule. Multi-batch and teacher conflicts are blocked automatically.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={openAddScheduleModal}
+              className="inline-flex items-center gap-1.5 self-start sm:self-auto rounded-xl bg-orange-500 px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-orange-600 active:scale-95"
+            >
+              <span>+</span>
+              <span>Add Schedule</span>
+            </button>
+          </div>
+
+          {scheduleError && (
+            <div className="mb-5 rounded-2xl border border-red-200 bg-red-50 p-4 text-xs font-medium text-red-700">
+              {scheduleError}
+            </div>
+          )}
+
+          {scheduleLoading ? (
+            <div className="py-12 text-center">
+              <div className="mx-auto h-8 w-8 animate-spin rounded-full border-4 border-orange-100 border-t-orange-500" />
+              <p className="mt-3 text-xs text-stone-500">Loading timetable...</p>
+            </div>
+          ) : (
+            <WeeklyTimetable
+              schedules={schedules}
+              onAddSchedule={openAddScheduleModal}
+              onEditSchedule={openEditScheduleModal}
+              onDeleteSchedule={(sched) => setDeleteScheduleTarget(sched)}
+              showTeacherName={true}
+              emptyMessage="No weekly classes scheduled for this cohort yet."
+            />
+          )}
+        </section>
+
+        {/* ============================================================
+            CHANGE 3: ENROLLED STUDENTS TABLE
+        ============================================================ */}
         <section className="mt-6 overflow-hidden rounded-3xl border border-orange-100/70 bg-white/80 shadow-sm backdrop-blur-xl">
           <div className="flex flex-col gap-3 border-b border-stone-200/70 p-6 sm:flex-row sm:items-center sm:justify-between sm:p-7">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-orange-600">
-                Batch Students
+                Cohort Roster
               </p>
 
               <h2 className="mt-1.5 text-lg font-semibold tracking-tight text-stone-900">
-                Assigned Students
+                Assigned Students ({students.length})
               </h2>
 
               <p className="mt-1 text-sm text-stone-500">
-                Students currently assigned to this coaching batch.
+                Students actively enrolled in this batch, with their verified standard and student code.
               </p>
             </div>
 
             <Link
-              href="/app/students"
+              href="/app/batches"
               className="inline-flex items-center justify-center rounded-xl border border-orange-100 bg-orange-50 px-4 py-2 text-xs font-semibold text-orange-600 transition duration-200 hover:-translate-y-0.5 hover:border-orange-200 hover:bg-orange-100 active:translate-y-0"
             >
-              View Students Directory →
+              Manage Cohort Rosters →
             </Link>
           </div>
 
@@ -1146,58 +1101,100 @@ export default function BatchDetailsPage() {
                 </p>
 
                 <p className="mt-1 text-xs text-stone-500">
-                  Students assigned to this batch will appear here.
+                  Students enrolled in this cohort will appear in the table below.
                 </p>
               </div>
             ) : (
-              <div className="grid gap-3 md:grid-cols-2">
-                {students.map((assignment) => {
-                  const student = assignment.student;
+              <div className="overflow-x-auto rounded-2xl border border-stone-200 bg-white">
+                <table className="w-full text-left text-xs">
+                  <thead>
+                    <tr className="border-b border-stone-100 bg-stone-50/70 text-stone-500">
+                      <th className="px-5 py-3.5 font-semibold uppercase tracking-wider">
+                        Student
+                      </th>
+                      <th className="px-4 py-3.5 font-semibold uppercase tracking-wider">
+                        Student ID
+                      </th>
+                      <th className="px-4 py-3.5 font-semibold uppercase tracking-wider">
+                        Assigned Standard
+                      </th>
+                      <th className="px-4 py-3.5 font-semibold uppercase tracking-wider">
+                        School
+                      </th>
+                      <th className="px-5 py-3.5 text-right font-semibold uppercase tracking-wider">
+                        Action
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-stone-100">
+                    {students.map((assignment) => {
+                      const student = assignment.student;
 
-                  return (
-                    <div
-                      key={assignment.id}
-                      className="flex items-center justify-between gap-4 rounded-2xl border border-stone-200 bg-white p-4 transition duration-200 hover:-translate-y-0.5 hover:border-orange-200 hover:shadow-sm"
-                    >
-                      <div className="flex min-w-0 items-center gap-3">
-                        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-orange-100 text-sm font-bold text-orange-700">
-                          {student.name
-                            .split(" ")
-                            .map((part) => part[0])
-                            .slice(0, 2)
-                            .join("")
-                            .toUpperCase()}
-                        </div>
+                      return (
+                        <tr
+                          key={assignment.id}
+                          className="transition hover:bg-orange-50/30"
+                        >
+                          <td className="px-5 py-3.5">
+                            <div className="flex items-center gap-3">
+                              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-orange-100 text-xs font-bold text-orange-700">
+                                {student.name
+                                  .split(" ")
+                                  .map((p) => p[0])
+                                  .slice(0, 2)
+                                  .join("")
+                                  .toUpperCase()}
+                              </div>
+                              <Link
+                                href={`/app/students/${student.id}`}
+                                className="font-bold text-stone-900 transition hover:text-orange-600"
+                              >
+                                {student.name}
+                              </Link>
+                            </div>
+                          </td>
 
-                        <div className="min-w-0">
-                          <Link
-                            href={`/app/students/${student.id}`}
-                            className="truncate text-sm font-semibold text-stone-900 transition hover:text-orange-600"
-                          >
-                            {student.name}
-                          </Link>
+                          <td className="px-4 py-3.5 font-mono text-stone-600">
+                            {student.studentCode || `STU-${student.id.slice(0, 5)}`}
+                          </td>
 
-                          <p className="mt-0.5 truncate text-xs text-stone-500">
-                            {[
-                              student.studentCode,
-                              student.school?.name,
-                              student.standard?.name,
-                            ]
-                              .filter(Boolean)
-                              .join(" • ") || "Student"}
-                          </p>
-                        </div>
-                      </div>
+                          <td className="px-4 py-3.5">
+                            <span className="inline-flex rounded-lg bg-orange-50 px-2.5 py-0.5 text-xs font-semibold text-orange-700">
+                              {student.standard?.name || "Unassigned"}
+                            </span>
+                          </td>
 
-                      <Link
-                        href={`/app/students/${student.id}`}
-                        className="inline-flex shrink-0 items-center gap-1 text-xs font-semibold text-orange-600 transition hover:text-orange-700"
-                      >
-                        View Details →
-                      </Link>
-                    </div>
-                  );
-                })}
+                          <td className="px-4 py-3.5 text-stone-600">
+                            {student.school?.name || "—"}
+                          </td>
+
+                          <td className="px-5 py-3.5 text-right">
+                            <div className="flex items-center justify-end gap-2">
+                              <Link
+                                href={`/app/students/${student.id}`}
+                                className="rounded-lg border border-stone-200 bg-white px-2.5 py-1 text-xs font-semibold text-stone-700 transition hover:bg-stone-50"
+                              >
+                                View
+                              </Link>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setRemovingStudentTarget({
+                                    studentId: student.id,
+                                    studentName: student.name,
+                                  })
+                                }
+                                className="rounded-lg border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-600 transition hover:bg-red-100"
+                              >
+                                Remove
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
             )}
           </div>
@@ -1211,7 +1208,7 @@ export default function BatchDetailsPage() {
             </p>
 
             <h2 className="mt-1.5 text-lg font-semibold tracking-tight text-stone-900">
-              Assigned Teachers
+              Assigned Teachers ({teachers.length})
             </h2>
 
             <p className="mt-1 text-sm text-stone-500">
@@ -1250,15 +1247,15 @@ export default function BatchDetailsPage() {
                       </div>
 
                       <div className="min-w-0">
-                        <p className="truncate text-sm font-semibold text-stone-900">
+                        <Link
+                          href={`/app/teachers/${teacher.id}`}
+                          className="truncate text-sm font-semibold text-stone-900 transition hover:text-orange-600"
+                        >
                           {teacher.name}
-                        </p>
+                        </Link>
 
                         <p className="mt-0.5 truncate text-xs text-stone-500">
-                          {[
-                            teacher.specialization,
-                            teacher.email,
-                          ]
+                          {[teacher.specialization, teacher.email]
                             .filter(Boolean)
                             .join(" • ") || "Teacher"}
                         </p>
@@ -1266,219 +1263,6 @@ export default function BatchDetailsPage() {
                     </div>
                   );
                 })}
-              </div>
-            )}
-          </div>
-        </section>
-
-        {/* CLASS SCHEDULE */}
-        <section className="mt-6 overflow-hidden rounded-3xl border border-orange-100/70 bg-white/80 shadow-sm backdrop-blur-xl">
-          <div className="flex flex-col gap-4 border-b border-stone-200/70 p-6 sm:flex-row sm:items-center sm:justify-between sm:p-7">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-orange-600">
-                Batch Schedule
-              </p>
-
-              <h2 className="mt-1.5 text-lg font-semibold tracking-tight text-stone-900">
-                Weekly Class Schedule
-              </h2>
-
-              <p className="mt-1 max-w-2xl text-sm text-stone-500">
-                Manage the weekly class timetable for this batch. Conflict
-                detection automatically prevents overlapping periods.
-              </p>
-            </div>
-
-            <button
-              type="button"
-              onClick={openAddScheduleModal}
-              className="inline-flex items-center justify-center rounded-xl bg-orange-500 px-4 py-2.5 text-xs font-semibold text-white shadow-md shadow-orange-100 transition duration-200 hover:-translate-y-0.5 hover:bg-orange-600 active:translate-y-0 active:scale-[0.98]"
-            >
-              + Add Schedule
-            </button>
-          </div>
-
-          <div className="p-6 sm:p-7">
-            {scheduleError && !showScheduleModal && (
-              <div className="mb-5 flex items-start gap-3 rounded-2xl border border-red-200 bg-red-50 p-4">
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-red-100 text-sm font-bold text-red-700">
-                  !
-                </div>
-
-                <div>
-                  <p className="text-sm font-semibold text-red-800">
-                    Unable to load schedule
-                  </p>
-
-                  <p className="mt-1 text-xs leading-5 text-red-700">
-                    {scheduleError}
-                  </p>
-                </div>
-              </div>
-            )}
-
-            {scheduleLoading ? (
-              <div className="rounded-2xl border border-stone-200 bg-stone-50/60 p-10 text-center">
-                <div className="mx-auto h-8 w-8 animate-spin rounded-full border-4 border-orange-100 border-t-orange-500" />
-
-                <p className="mt-4 text-sm font-medium text-stone-500">
-                  Loading class schedule...
-                </p>
-              </div>
-            ) : sortedSchedules.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-stone-200 bg-stone-50/60 p-10 text-center">
-                <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-orange-100 text-2xl">
-                  🗓
-                </div>
-
-                <p className="mt-4 text-sm font-semibold text-stone-800">
-                  No class schedule added
-                </p>
-
-                <p className="mx-auto mt-1 max-w-md text-xs leading-5 text-stone-500">
-                  Add the weekly class timings for this batch. Schedule
-                  conflicts with teachers, students, or this batch will be
-                  prevented automatically.
-                </p>
-
-                <button
-                  type="button"
-                  onClick={openAddScheduleModal}
-                  className="mt-5 inline-flex items-center justify-center rounded-xl bg-orange-500 px-4 py-2.5 text-xs font-semibold text-white shadow-md shadow-orange-100 transition duration-200 hover:-translate-y-0.5 hover:bg-orange-600 active:translate-y-0"
-                >
-                  Add First Schedule
-                </button>
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[900px]">
-                  <thead>
-                    <tr className="border-b border-stone-200">
-                      <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-[0.16em] text-stone-500">
-                        Day
-                      </th>
-
-                      <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-[0.16em] text-stone-500">
-                        Time
-                      </th>
-
-                      <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-[0.16em] text-stone-500">
-                        Subject
-                      </th>
-
-                      <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-[0.16em] text-stone-500">
-                        Teacher
-                      </th>
-
-                      <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-[0.16em] text-stone-500">
-                        Room
-                      </th>
-
-                      <th className="px-4 py-3.5 text-right text-xs font-semibold uppercase tracking-[0.16em] text-stone-500">
-                        Actions
-                      </th>
-                    </tr>
-                  </thead>
-
-                  <tbody>
-                    {sortedSchedules.map((schedule) => (
-                      <tr
-                        key={schedule.id}
-                        className="border-b border-stone-100 transition duration-150 last:border-0 hover:bg-orange-50/30"
-                      >
-                        <td className="px-4 py-4">
-                          <span className="inline-flex rounded-xl border border-orange-100 bg-orange-50 px-3 py-1.5 text-xs font-semibold text-orange-700">
-                            {getDayName(schedule.dayOfWeek)}
-                          </span>
-                        </td>
-
-                        <td className="px-4 py-4">
-                          <p className="text-sm font-semibold text-stone-800">
-                            {formatTimeRange(
-                              schedule.startTime,
-                              schedule.endTime,
-                            )}
-                          </p>
-
-                          <p className="mt-0.5 text-xs text-stone-400">
-                            Weekly class
-                          </p>
-                        </td>
-
-                        <td className="px-4 py-4">
-                          <p className="text-sm font-semibold text-stone-800">
-                            {schedule.subject?.name || "Subject not specified"}
-                          </p>
-                        </td>
-
-                        <td className="px-4 py-4">
-                          <p className="text-sm font-semibold text-stone-800">
-                            {schedule.teacher?.name || "Teacher not specified"}
-                          </p>
-
-                          {schedule.teacher?.specialization && (
-                            <p className="mt-0.5 text-xs text-stone-400">
-                              {schedule.teacher.specialization}
-                            </p>
-                          )}
-                        </td>
-
-                        <td className="px-4 py-4 text-sm text-stone-600">
-                          {schedule.room || "—"}
-                        </td>
-
-                        <td className="px-4 py-4">
-                          <div className="flex justify-end gap-2">
-                            <button
-                              type="button"
-                              onClick={() =>
-                                openEditScheduleModal(schedule)
-                              }
-                              className="rounded-xl border border-orange-200 bg-white px-3.5 py-2 text-xs font-semibold text-orange-700 transition duration-200 hover:-translate-y-0.5 hover:border-orange-300 hover:bg-orange-50 active:translate-y-0"
-                            >
-                              Edit
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setDeleteScheduleTarget(schedule)
-                              }
-                              disabled={
-                                scheduleDeletingId === schedule.id
-                              }
-                              className="rounded-xl border border-red-100 bg-red-50 px-3.5 py-2 text-xs font-semibold text-red-600 transition duration-200 hover:-translate-y-0.5 hover:border-red-200 hover:bg-red-100 disabled:opacity-60 active:translate-y-0"
-                            >
-                              Delete
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-
-            {!scheduleLoading && sortedSchedules.length > 0 && (
-              <div className="mt-5 rounded-2xl border border-orange-100 bg-orange-50/60 p-4">
-                <div className="flex items-start gap-3">
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-orange-100 text-sm font-bold text-orange-700">
-                    i
-                  </div>
-
-                  <div>
-                    <p className="text-xs font-semibold text-orange-800">
-                      Scheduling rule
-                    </p>
-
-                    <p className="mt-1 text-xs leading-5 text-orange-700">
-                      Overlapping schedules are blocked automatically.
-                      Back-to-back classes are allowed, so 4:00–5:00 PM and
-                      5:00–6:00 PM can be scheduled without conflict.
-                    </p>
-                  </div>
-                </div>
               </div>
             )}
           </div>
@@ -1627,8 +1411,7 @@ export default function BatchDetailsPage() {
                         </p>
 
                         <p className="mt-0.5 text-xs text-stone-500">
-                          {assessment.subject ||
-                            "Subject not specified"}
+                          {assessment.subject || "Subject not specified"}
                         </p>
                       </div>
 
@@ -1640,10 +1423,7 @@ export default function BatchDetailsPage() {
                     </div>
 
                     <div className="mt-4 border-t border-stone-100 pt-3">
-                      <p className="text-xs text-stone-400">
-                        Assessment Date
-                      </p>
-
+                      <p className="text-xs text-stone-400">Assessment Date</p>
                       <p className="mt-1 text-sm font-medium text-stone-700">
                         {formatDate(assessment.assessmentDate)}
                       </p>
@@ -1670,7 +1450,6 @@ export default function BatchDetailsPage() {
               <p className="text-xs font-semibold uppercase tracking-[0.14em] text-stone-400">
                 Batch ID
               </p>
-
               <p className="mt-2 break-all text-sm font-medium text-stone-700">
                 {batch.id}
               </p>
@@ -1680,7 +1459,6 @@ export default function BatchDetailsPage() {
               <p className="text-xs font-semibold uppercase tracking-[0.14em] text-stone-400">
                 Start Date
               </p>
-
               <p className="mt-2 text-sm font-medium text-stone-700">
                 {formatDate(batch.startDate)}
               </p>
@@ -1690,7 +1468,6 @@ export default function BatchDetailsPage() {
               <p className="text-xs font-semibold uppercase tracking-[0.14em] text-stone-400">
                 End Date
               </p>
-
               <p className="mt-2 text-sm font-medium text-stone-700">
                 {formatDate(batch.endDate)}
               </p>
@@ -1700,7 +1477,6 @@ export default function BatchDetailsPage() {
               <p className="text-xs font-semibold uppercase tracking-[0.14em] text-stone-400">
                 Created
               </p>
-
               <p className="mt-2 text-sm font-medium text-stone-700">
                 {formatDate(batch.createdAt)}
               </p>
@@ -1708,572 +1484,459 @@ export default function BatchDetailsPage() {
           </div>
         </section>
 
-        {/* EDIT BATCH MODAL */}
-        {showEditModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/40 px-5 py-8 backdrop-blur-sm">
-            <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-3xl border border-orange-100 bg-white shadow-2xl">
-              <div className="border-b border-stone-200/70 px-6 py-5 sm:px-7">
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-orange-600">
-                      Edit Batch
-                    </p>
-
-                    <h2 className="mt-1.5 text-lg font-semibold tracking-tight text-stone-900">
-                      Update Batch Details
-                    </h2>
-
-                    <p className="mt-1 text-sm text-stone-500">
-                      Update the general cohort parameters for this batch.
-                    </p>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => setShowEditModal(false)}
-                    disabled={saving}
-                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-stone-200 bg-stone-50 text-lg text-stone-500 transition hover:border-orange-200 hover:bg-orange-50 hover:text-orange-600 disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    ×
-                  </button>
-                </div>
+        {/* ======================================================
+            MODAL 1: EDIT BATCH (CHANGE 2)
+        ====================================================== */}
+        <Modal
+          isOpen={showEditModal}
+          onClose={() => setShowEditModal(false)}
+          title="Update Batch Details"
+          badge="Edit Batch"
+          description="Update the general cohort parameters for this batch."
+          footer={
+            <>
+              <button
+                type="button"
+                onClick={() => setShowEditModal(false)}
+                disabled={saving}
+                className="rounded-xl border border-stone-200 bg-white px-5 py-2.5 text-xs font-semibold text-stone-600 transition hover:border-stone-300 hover:bg-stone-50 disabled:opacity-60"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                form="edit-batch-form"
+                disabled={saving}
+                className="rounded-xl bg-orange-500 px-5 py-2.5 text-xs font-semibold text-white shadow-md shadow-orange-100 transition hover:bg-orange-600 disabled:opacity-60"
+              >
+                {saving ? "Saving Changes..." : "Save Changes"}
+              </button>
+            </>
+          }
+        >
+          <form id="edit-batch-form" onSubmit={handleUpdateBatch}>
+            <div className="grid gap-5 sm:grid-cols-2">
+              <div className="sm:col-span-2">
+                <label className="text-xs font-semibold uppercase tracking-[0.16em] text-stone-500">
+                  Batch Name *
+                </label>
+                <input
+                  type="text"
+                  value={editForm.name}
+                  onChange={(e) =>
+                    setEditForm((cur) => ({ ...cur, name: e.target.value }))
+                  }
+                  className="mt-2 h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-900 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
+                  required
+                />
               </div>
 
-              <form
-                onSubmit={handleUpdateBatch}
-                className="p-6 sm:p-7"
-              >
-                <div className="grid gap-5 sm:grid-cols-2">
-                  <div className="sm:col-span-2">
-                    <label className="text-xs font-semibold uppercase tracking-[0.16em] text-stone-500">
-                      Batch Name
-                    </label>
+              <div className="sm:col-span-2">
+                <label className="text-xs font-semibold uppercase tracking-[0.16em] text-stone-500">
+                  Description
+                </label>
+                <textarea
+                  value={editForm.description}
+                  onChange={(e) =>
+                    setEditForm((cur) => ({
+                      ...cur,
+                      description: e.target.value,
+                    }))
+                  }
+                  rows={3}
+                  className="mt-2 w-full resize-none rounded-xl border border-stone-200 bg-white px-4 py-3 text-sm text-stone-900 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
+                />
+              </div>
 
-                    <input
-                      type="text"
-                      value={editForm.name}
-                      onChange={(event) =>
-                        setEditForm((current) => ({
-                          ...current,
-                          name: event.target.value,
-                        }))
-                      }
-                      className="mt-2 h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-900 placeholder:text-stone-400 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
-                      placeholder="Enter batch name"
-                      required
-                    />
-                  </div>
+              <div>
+                <label className="text-xs font-semibold uppercase tracking-[0.16em] text-stone-500">
+                  Start Date
+                </label>
+                <input
+                  type="date"
+                  value={editForm.startDate}
+                  onChange={(e) =>
+                    setEditForm((cur) => ({
+                      ...cur,
+                      startDate: e.target.value,
+                    }))
+                  }
+                  className="mt-2 h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-900 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
+                />
+              </div>
 
-                  <div className="sm:col-span-2">
-                    <label className="text-xs font-semibold uppercase tracking-[0.16em] text-stone-500">
-                      Description
-                    </label>
-
-                    <textarea
-                      value={editForm.description}
-                      onChange={(event) =>
-                        setEditForm((current) => ({
-                          ...current,
-                          description: event.target.value,
-                        }))
-                      }
-                      rows={3}
-                      className="mt-2 w-full resize-none rounded-xl border border-stone-200 bg-white px-4 py-3 text-sm text-stone-900 placeholder:text-stone-400 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
-                      placeholder="Enter batch description"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="text-xs font-semibold uppercase tracking-[0.16em] text-stone-500">
-                      Start Date
-                    </label>
-
-                    <input
-                      type="date"
-                      value={editForm.startDate}
-                      onChange={(event) =>
-                        setEditForm((current) => ({
-                          ...current,
-                          startDate: event.target.value,
-                        }))
-                      }
-                      className="mt-2 h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-900 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="text-xs font-semibold uppercase tracking-[0.16em] text-stone-500">
-                      End Date
-                    </label>
-
-                    <input
-                      type="date"
-                      value={editForm.endDate}
-                      onChange={(event) =>
-                        setEditForm((current) => ({
-                          ...current,
-                          endDate: event.target.value,
-                        }))
-                      }
-                      className="mt-2 h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-900 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
-                    />
-                  </div>
-                </div>
-
-                <div className="mt-7 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-                  <button
-                    type="button"
-                    onClick={() => setShowEditModal(false)}
-                    disabled={saving}
-                    className="inline-flex items-center justify-center rounded-xl border border-stone-200 bg-white px-5 py-2.5 text-xs font-semibold text-stone-600 transition hover:border-stone-300 hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    Cancel
-                  </button>
-
-                  <button
-                    type="submit"
-                    disabled={saving}
-                    className="inline-flex items-center justify-center rounded-xl bg-orange-500 px-5 py-2.5 text-xs font-semibold text-white shadow-md shadow-orange-100 transition duration-200 hover:-translate-y-0.5 hover:bg-orange-600 active:translate-y-0 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    {saving ? "Saving Changes..." : "Save Changes"}
-                  </button>
-                </div>
-              </form>
+              <div>
+                <label className="text-xs font-semibold uppercase tracking-[0.16em] text-stone-500">
+                  End Date
+                </label>
+                <input
+                  type="date"
+                  value={editForm.endDate}
+                  onChange={(e) =>
+                    setEditForm((cur) => ({
+                      ...cur,
+                      endDate: e.target.value,
+                    }))
+                  }
+                  className="mt-2 h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-900 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
+                />
+              </div>
             </div>
-          </div>
-        )}
+          </form>
+        </Modal>
 
-        {/* ADD / EDIT SCHEDULE MODAL */}
-        {showScheduleModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/45 px-5 py-8 backdrop-blur-sm">
-            <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-3xl border border-orange-100 bg-white shadow-2xl">
-              <div className="border-b border-stone-200/70 px-6 py-5 sm:px-7">
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-orange-600">
-                      Batch Schedule
-                    </p>
+        {/* ======================================================
+            MODAL 2: ADD / EDIT SCHEDULE (CHANGE 1 & 2)
+        ====================================================== */}
+        <Modal
+          isOpen={showScheduleModal}
+          onClose={closeScheduleModal}
+          title={editingSchedule ? "Edit Class Schedule" : "Add Class Schedule"}
+          badge="Batch Schedule"
+          description="Set the weekly class timing for this batch. Conflict detection will verify faculty & student availability."
+          footer={
+            <>
+              <button
+                type="button"
+                onClick={closeScheduleModal}
+                disabled={scheduleSaving}
+                className="rounded-xl border border-stone-200 bg-white px-5 py-2.5 text-xs font-semibold text-stone-600 transition hover:border-stone-300 hover:bg-stone-50 disabled:opacity-60"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                form="schedule-form"
+                disabled={scheduleSaving || teachers.length === 0}
+                className="rounded-xl bg-orange-500 px-5 py-2.5 text-xs font-semibold text-white shadow-md shadow-orange-100 transition hover:bg-orange-600 disabled:opacity-60"
+              >
+                {scheduleSaving
+                  ? "Saving..."
+                  : editingSchedule
+                    ? "Update Schedule"
+                    : "Add Schedule"}
+              </button>
+            </>
+          }
+        >
+          <form id="schedule-form" onSubmit={handleSaveSchedule}>
+            {scheduleError && (
+              <div className="mb-5 rounded-2xl border border-red-200 bg-red-50 p-4 text-xs font-medium text-red-700">
+                {scheduleError}
+              </div>
+            )}
 
-                    <h2 className="mt-1.5 text-lg font-semibold tracking-tight text-stone-900">
-                      {editingSchedule
-                        ? "Edit Class Schedule"
-                        : "Add Class Schedule"}
-                    </h2>
-
-                    <p className="mt-1 text-sm leading-5 text-stone-500">
-                      Set the weekly class timing for this batch.
-                    </p>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={closeScheduleModal}
-                    disabled={scheduleSaving}
-                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-stone-200 bg-stone-50 text-lg text-stone-500 transition hover:border-orange-200 hover:bg-orange-50 hover:text-orange-600 disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    ×
-                  </button>
-                </div>
+            <div className="grid gap-5 sm:grid-cols-2">
+              <div className="sm:col-span-2">
+                <label className="text-xs font-semibold uppercase tracking-[0.16em] text-stone-500">
+                  Day of the Week *
+                </label>
+                <select
+                  value={scheduleForm.dayOfWeek}
+                  onChange={(e) =>
+                    setScheduleForm((cur) => ({
+                      ...cur,
+                      dayOfWeek: e.target.value,
+                    }))
+                  }
+                  className="mt-2 h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-900 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
+                  required
+                >
+                  {DAYS.map((day) => (
+                    <option key={day.value} value={day.value}>
+                      {day.label}
+                    </option>
+                  ))}
+                </select>
               </div>
 
-              <form
-                onSubmit={handleSaveSchedule}
-                className="p-6 sm:p-7"
-              >
-                {scheduleError && (
-                  <div className="mb-5 rounded-2xl border border-red-200 bg-red-50 p-4">
-                    <div className="flex items-start gap-3">
-                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-red-100 text-sm font-bold text-red-700">
-                        !
-                      </div>
+              <div>
+                <label className="text-xs font-semibold uppercase tracking-[0.16em] text-stone-500">
+                  Start Time *
+                </label>
+                <input
+                  type="time"
+                  value={scheduleForm.startTime}
+                  onChange={(e) =>
+                    setScheduleForm((cur) => ({
+                      ...cur,
+                      startTime: e.target.value,
+                    }))
+                  }
+                  className="mt-2 h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-900 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
+                  required
+                />
+              </div>
 
-                      <div>
-                        <p className="text-sm font-semibold text-red-800">
-                          Unable to save schedule
-                        </p>
+              <div>
+                <label className="text-xs font-semibold uppercase tracking-[0.16em] text-stone-500">
+                  End Time *
+                </label>
+                <input
+                  type="time"
+                  value={scheduleForm.endTime}
+                  onChange={(e) =>
+                    setScheduleForm((cur) => ({
+                      ...cur,
+                      endTime: e.target.value,
+                    }))
+                  }
+                  className="mt-2 h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-900 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
+                  required
+                />
+              </div>
 
-                        <p className="mt-1 text-xs leading-5 text-red-700">
-                          {scheduleError}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
+              <div>
+                <label className="text-xs font-semibold uppercase tracking-[0.16em] text-stone-500">
+                  Teacher *
+                </label>
+                <select
+                  value={scheduleForm.teacherId}
+                  onChange={(e) =>
+                    setScheduleForm((cur) => ({
+                      ...cur,
+                      teacherId: e.target.value,
+                    }))
+                  }
+                  className="mt-2 h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-900 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
+                  required
+                >
+                  <option value="">Select teacher</option>
+                  {teachers.map((assignment) => (
+                    <option
+                      key={assignment.teacherId}
+                      value={assignment.teacherId}
+                    >
+                      {assignment.teacher.name}
+                    </option>
+                  ))}
+                </select>
+                {teachers.length === 0 && (
+                  <p className="mt-1 text-xs text-red-600">
+                    Assign a teacher to this batch before creating a schedule.
+                  </p>
                 )}
+              </div>
 
-                <div className="grid gap-5 sm:grid-cols-2">
-                  <div className="sm:col-span-2">
-                    <label className="text-xs font-semibold uppercase tracking-[0.16em] text-stone-500">
-                      Day
-                    </label>
+              <div>
+                <label className="text-xs font-semibold uppercase tracking-[0.16em] text-stone-500">
+                  Subject
+                </label>
+                <select
+                  value={scheduleForm.subjectId}
+                  onChange={(e) =>
+                    setScheduleForm((cur) => ({
+                      ...cur,
+                      subjectId: e.target.value,
+                    }))
+                  }
+                  className="mt-2 h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-900 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
+                >
+                  <option value="">Select subject</option>
+                  {subjects.map((subject) => (
+                    <option key={subject.id} value={subject.id}>
+                      {subject.name}
+                      {subject.code ? ` (${subject.code})` : ""}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-                    <select
-                      value={scheduleForm.dayOfWeek}
-                      onChange={(event) =>
-                        setScheduleForm((current) => ({
-                          ...current,
-                          dayOfWeek: event.target.value,
-                        }))
-                      }
-                      className="mt-2 h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-900 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
-                      required
-                    >
-                      {DAYS.map((day) => (
-                        <option key={day.value} value={day.value}>
-                          {day.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="text-xs font-semibold uppercase tracking-[0.16em] text-stone-500">
-                      Start Time
-                    </label>
-
-                    <input
-                      type="time"
-                      value={scheduleForm.startTime}
-                      onChange={(event) =>
-                        setScheduleForm((current) => ({
-                          ...current,
-                          startTime: event.target.value,
-                        }))
-                      }
-                      className="mt-2 h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-900 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
-                      required
-                    />
-                  </div>
-
-                  <div>
-                    <label className="text-xs font-semibold uppercase tracking-[0.16em] text-stone-500">
-                      End Time
-                    </label>
-
-                    <input
-                      type="time"
-                      value={scheduleForm.endTime}
-                      onChange={(event) =>
-                        setScheduleForm((current) => ({
-                          ...current,
-                          endTime: event.target.value,
-                        }))
-                      }
-                      className="mt-2 h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-900 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
-                      required
-                    />
-                  </div>
-
-                  <div>
-                    <label className="text-xs font-semibold uppercase tracking-[0.16em] text-stone-500">
-                      Teacher
-                    </label>
-
-                    <select
-                      value={scheduleForm.teacherId}
-                      onChange={(event) =>
-                        setScheduleForm((current) => ({
-                          ...current,
-                          teacherId: event.target.value,
-                        }))
-                      }
-                      className="mt-2 h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-900 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
-                      required
-                    >
-                      <option value="">Select teacher</option>
-
-                      {teachers.map((assignment) => (
-                        <option
-                          key={assignment.teacherId}
-                          value={assignment.teacherId}
-                        >
-                          {assignment.teacher.name}
-                        </option>
-                      ))}
-                    </select>
-
-                    {teachers.length === 0 && (
-                      <p className="mt-2 text-xs text-red-600">
-                        Assign a teacher to this batch before creating a
-                        schedule.
-                      </p>
-                    )}
-                  </div>
-
-                  <div>
-                    <label className="text-xs font-semibold uppercase tracking-[0.16em] text-stone-500">
-                      Subject
-                    </label>
-
-                    <select
-                      value={scheduleForm.subjectId}
-                      onChange={(event) =>
-                        setScheduleForm((current) => ({
-                          ...current,
-                          subjectId: event.target.value,
-                        }))
-                      }
-                      className="mt-2 h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-900 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
-                    >
-                      <option value="">Select subject</option>
-
-                      {subjects.map((subject) => (
-                        <option key={subject.id} value={subject.id}>
-                          {subject.name}
-                          {subject.code ? ` (${subject.code})` : ""}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div className="sm:col-span-2">
-                    <label className="text-xs font-semibold uppercase tracking-[0.16em] text-stone-500">
-                      Room
-                    </label>
-
-                    <input
-                      type="text"
-                      value={scheduleForm.room}
-                      onChange={(event) =>
-                        setScheduleForm((current) => ({
-                          ...current,
-                          room: event.target.value,
-                        }))
-                      }
-                      className="mt-2 h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-900 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
-                      placeholder="e.g. Room 1"
-                    />
-                  </div>
-                </div>
-
-                <div className="mt-5 rounded-2xl border border-orange-100 bg-orange-50/60 p-4">
-                  <p className="text-xs font-semibold text-orange-800">
-                    Schedule validation
-                  </p>
-
-                  <p className="mt-1 text-xs leading-5 text-orange-700">
-                    A teacher or student cannot have overlapping classes.
-                    Back-to-back classes are allowed. For example,
-                    4:00–5:00 PM followed by 5:00–6:00 PM is valid.
-                  </p>
-                </div>
-
-                <div className="mt-7 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-                  <button
-                    type="button"
-                    onClick={closeScheduleModal}
-                    disabled={scheduleSaving}
-                    className="inline-flex items-center justify-center rounded-xl border border-stone-200 bg-white px-5 py-2.5 text-xs font-semibold text-stone-600 transition hover:border-stone-300 hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    Cancel
-                  </button>
-
-                  <button
-                    type="submit"
-                    disabled={
-                      scheduleSaving ||
-                      teachers.length === 0
-                    }
-                    className="inline-flex items-center justify-center rounded-xl bg-orange-500 px-5 py-2.5 text-xs font-semibold text-white shadow-md shadow-orange-100 transition duration-200 hover:-translate-y-0.5 hover:bg-orange-600 active:translate-y-0 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    {scheduleSaving
-                      ? "Saving..."
-                      : editingSchedule
-                        ? "Update Schedule"
-                        : "Add Schedule"}
-                  </button>
-                </div>
-              </form>
+              <div className="sm:col-span-2">
+                <label className="text-xs font-semibold uppercase tracking-[0.16em] text-stone-500">
+                  Room / Location
+                </label>
+                <input
+                  type="text"
+                  value={scheduleForm.room}
+                  onChange={(e) =>
+                    setScheduleForm((cur) => ({
+                      ...cur,
+                      room: e.target.value,
+                    }))
+                  }
+                  className="mt-2 h-11 w-full rounded-xl border border-stone-200 bg-white px-4 text-sm text-stone-900 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
+                  placeholder="e.g. Room 102 / Lab A"
+                />
+              </div>
             </div>
-          </div>
-        )}
 
-        {/* DELETE SCHEDULE MODAL */}
+            <div className="mt-5 rounded-2xl border border-orange-100 bg-orange-50/60 p-4 text-xs text-orange-800">
+              <span className="font-bold">Conflict Guard:</span> Overlapping class times for the same cohort or teacher are prevented automatically. Back-to-back classes (e.g. 4:00–5:00 PM then 5:00–6:00 PM) are permitted.
+            </div>
+          </form>
+        </Modal>
+
+        {/* ======================================================
+            MODAL 3: DELETE SCHEDULE CONFIRMATION
+        ====================================================== */}
         {deleteScheduleTarget && (
-          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-stone-900/45 px-5 py-8 backdrop-blur-sm">
-            <div className="w-full max-w-md rounded-3xl border border-red-100 bg-white p-6 shadow-2xl sm:p-7">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-red-50 text-xl font-bold text-red-600">
-                !
-              </div>
-
-              <h2 className="mt-5 text-lg font-semibold tracking-tight text-stone-900">
-                Delete this schedule?
-              </h2>
-
-              <p className="mt-2 text-sm leading-6 text-stone-500">
-                This will remove the weekly class timing from the batch schedule.
-                This action cannot be undone.
-              </p>
-
-              <div className="mt-5 rounded-2xl border border-stone-200 bg-stone-50/60 p-4">
-                <p className="text-sm font-semibold text-stone-800">
-                  {getDayName(deleteScheduleTarget.dayOfWeek)}
-                </p>
-
-                <p className="mt-0.5 text-xs text-stone-500">
-                  {formatTimeRange(
-                    deleteScheduleTarget.startTime,
-                    deleteScheduleTarget.endTime,
-                  )}
-                </p>
-
-                <p className="mt-2 text-xs font-medium text-stone-600">
-                  {deleteScheduleTarget.subject?.name ||
-                    "Subject not specified"}
-                  {" • "}
-                  {deleteScheduleTarget.teacher?.name ||
-                    "Teacher not specified"}
-                </p>
-              </div>
-
-              <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+          <Modal
+            isOpen={Boolean(deleteScheduleTarget)}
+            onClose={() => setDeleteScheduleTarget(null)}
+            title="Delete Class Schedule?"
+            badge="Schedule Removal"
+            maxWidth="md"
+            footer={
+              <>
                 <button
                   type="button"
                   onClick={() => setDeleteScheduleTarget(null)}
                   disabled={Boolean(scheduleDeletingId)}
-                  className="inline-flex items-center justify-center rounded-xl border border-stone-200 bg-white px-5 py-2.5 text-xs font-semibold text-stone-600 transition hover:border-stone-300 hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="rounded-xl border border-stone-200 bg-white px-5 py-2.5 text-xs font-semibold text-stone-600 transition hover:bg-stone-50 disabled:opacity-60"
                 >
                   Cancel
                 </button>
-
                 <button
                   type="button"
                   onClick={handleDeleteSchedule}
                   disabled={Boolean(scheduleDeletingId)}
-                  className="inline-flex items-center justify-center rounded-xl bg-red-600 px-5 py-2.5 text-xs font-semibold text-white shadow-sm transition hover:bg-red-700 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
+                  className="rounded-xl bg-red-600 px-5 py-2.5 text-xs font-semibold text-white shadow-sm transition hover:bg-red-700 disabled:opacity-60"
                 >
                   {scheduleDeletingId ? "Deleting..." : "Delete Schedule"}
                 </button>
-              </div>
+              </>
+            }
+          >
+            <p className="text-sm text-stone-600">
+              This will remove the weekly class timing from the batch schedule.
+            </p>
+            <div className="mt-4 rounded-2xl border border-stone-200 bg-stone-50/60 p-4 text-xs">
+              <p className="font-bold text-stone-900">
+                {getDayName(deleteScheduleTarget.dayOfWeek)} •{" "}
+                {formatTimeRange(
+                  deleteScheduleTarget.startTime,
+                  deleteScheduleTarget.endTime,
+                )}
+              </p>
+              <p className="mt-1 text-stone-600">
+                Subject: {deleteScheduleTarget.subject?.name || "Unspecified"} • Teacher: {deleteScheduleTarget.teacher?.name || "Unspecified"}
+              </p>
             </div>
-          </div>
+          </Modal>
         )}
 
-        {/* SCHEDULE CONFLICT MODAL */}
+        {/* ======================================================
+            MODAL 4: REMOVE STUDENT CONFIRMATION
+        ====================================================== */}
+        {removingStudentTarget && (
+          <Modal
+            isOpen={Boolean(removingStudentTarget)}
+            onClose={() => setRemovingStudentTarget(null)}
+            title="Remove Student from Batch?"
+            badge="Cohort Unenrollment"
+            maxWidth="md"
+            footer={
+              <>
+                <button
+                  type="button"
+                  onClick={() => setRemovingStudentTarget(null)}
+                  disabled={isRemovingStudent}
+                  className="rounded-xl border border-stone-200 bg-white px-5 py-2.5 text-xs font-semibold text-stone-600 transition hover:bg-stone-50 disabled:opacity-60"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleRemoveStudentConfirmed}
+                  disabled={isRemovingStudent}
+                  className="rounded-xl bg-red-600 px-5 py-2.5 text-xs font-semibold text-white shadow-sm transition hover:bg-red-700 disabled:opacity-60"
+                >
+                  {isRemovingStudent ? "Removing..." : "Remove Student"}
+                </button>
+              </>
+            }
+          >
+            <p className="text-sm text-stone-600">
+              Are you sure you want to remove{" "}
+              <strong className="font-semibold text-stone-900">
+                {removingStudentTarget.studentName}
+              </strong>{" "}
+              from <strong className="font-semibold text-stone-900">{batch.name}</strong>?
+            </p>
+          </Modal>
+        )}
+
+        {/* ======================================================
+            MODAL 5: SCHEDULE CONFLICT MODAL
+        ====================================================== */}
         {conflictModal && (
-          <div className="fixed inset-0 z-[70] flex items-center justify-center bg-stone-900/50 px-5 py-8 backdrop-blur-sm">
-            <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-3xl border border-red-100 bg-white shadow-2xl">
-              <div className="border-b border-stone-200/70 px-6 py-6 sm:px-7">
-                <div className="flex items-start gap-4">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-red-50 text-xl font-bold text-red-600">
-                    !
-                  </div>
+          <Modal
+            isOpen={Boolean(conflictModal)}
+            onClose={() => setConflictModal(null)}
+            title={conflictTitle(conflictModal.code)}
+            badge="Schedule Conflict"
+            maxWidth="2xl"
+            footer={
+              <button
+                type="button"
+                onClick={() => setConflictModal(null)}
+                className="rounded-xl bg-orange-500 px-6 py-2.5 text-xs font-semibold text-white shadow-sm hover:bg-orange-600"
+              >
+                Understood
+              </button>
+            }
+          >
+            <div>
+              <p className="text-sm font-medium text-stone-700 mb-4">
+                {conflictModal.message}
+              </p>
 
-                  <div className="min-w-0">
-                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-red-600">
-                      Schedule Conflict
-                    </p>
-
-                    <h2 className="mt-1.5 text-lg font-semibold tracking-tight text-stone-900">
-                      {conflictTitle(conflictModal.code)}
-                    </h2>
-
-                    <p className="mt-1.5 text-sm leading-6 text-stone-500">
-                      {conflictDescription(conflictModal.code)}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="p-6 sm:p-7">
-                <div className="rounded-2xl border border-red-100 bg-red-50/60 p-4">
-                  <p className="text-sm font-semibold leading-6 text-red-800">
-                    {conflictModal.message}
-                  </p>
-                </div>
-
-                {conflictModal.conflicts.length > 0 && (
-                  <div className="mt-5 space-y-4">
-                    {conflictModal.conflicts.map((conflict, index) => (
-                      <div
-                        key={`${conflict.existingBatchId || "conflict"}-${index}`}
-                        className="rounded-2xl border border-stone-200 bg-white p-5"
-                      >
-                        <div className="flex items-center justify-between gap-3">
-                          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-stone-400">
-                            Conflict #{index + 1}
+              {conflictModal.conflicts.length > 0 && (
+                <div className="space-y-4">
+                  {conflictModal.conflicts.map((conflict, index) => (
+                    <div
+                      key={`${conflict.existingBatchId || "conflict"}-${index}`}
+                      className="rounded-2xl border border-stone-200 bg-white p-4"
+                    >
+                      {conflict.personName && (
+                        <p className="mb-2 text-xs font-bold text-stone-900">
+                          {conflict.personName}
+                        </p>
+                      )}
+                      <div className="grid gap-3 sm:grid-cols-2 text-xs">
+                        <div className="rounded-xl border border-stone-100 bg-stone-50 p-3">
+                          <p className="font-semibold text-stone-500 uppercase tracking-wider text-[10px]">
+                            Existing Class
                           </p>
-
-                          <span className="rounded-full bg-red-50 px-3 py-1 text-xs font-semibold text-red-600">
-                            Overlapping Period
-                          </span>
+                          <p className="mt-1 font-bold text-stone-900">
+                            {getConflictExistingLabel(conflict)}
+                          </p>
+                          <p className="mt-0.5 text-stone-600">
+                            {conflict.existingDay || getDayName(conflict.existingDayOfWeek)}
+                          </p>
+                          <p className="mt-1 font-semibold text-red-600">
+                            {formatTimeRange(
+                              conflict.existingStartTime,
+                              conflict.existingEndTime,
+                            )}
+                          </p>
                         </div>
 
-                        <div className="mt-4 grid gap-4 sm:grid-cols-2">
-                          <div className="rounded-xl border border-stone-100 bg-stone-50 p-4">
-                            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-stone-400">
-                              Existing Schedule
-                            </p>
-
-                            <p className="mt-2 text-sm font-semibold text-stone-800">
-                              {getConflictExistingLabel(conflict)}
-                            </p>
-
-                            <p className="mt-0.5 text-xs text-stone-500">
-                              {conflict.existingDay ||
-                                getDayName(
-                                  conflict.existingDayOfWeek,
-                                )}
-                            </p>
-
-                            <p className="mt-1 text-sm font-semibold text-red-600">
-                              {formatTimeRange(
-                                conflict.existingStartTime,
-                                conflict.existingEndTime,
-                              )}
-                            </p>
-                          </div>
-
-                          <div className="rounded-xl border border-orange-100 bg-orange-50/60 p-4">
-                            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-orange-500">
-                              Requested Schedule
-                            </p>
-
-                            <p className="mt-2 text-sm font-semibold text-stone-800">
-                              {getConflictRequestedLabel(conflict)}
-                            </p>
-
-                            <p className="mt-0.5 text-xs text-stone-500">
-                              {conflict.newDay ||
-                                getDayName(conflict.newDayOfWeek)}
-                            </p>
-
-                            <p className="mt-1 text-sm font-semibold text-orange-700">
-                              {formatTimeRange(
-                                conflict.newStartTime,
-                                conflict.newEndTime,
-                              )}
-                            </p>
-                          </div>
+                        <div className="rounded-xl border border-orange-100 bg-orange-50/60 p-3">
+                          <p className="font-semibold text-orange-600 uppercase tracking-wider text-[10px]">
+                            Requested Class
+                          </p>
+                          <p className="mt-1 font-bold text-stone-900">
+                            {getConflictRequestedLabel(conflict)}
+                          </p>
+                          <p className="mt-0.5 text-stone-600">
+                            {conflict.newDay || getDayName(conflict.newDayOfWeek)}
+                          </p>
+                          <p className="mt-1 font-semibold text-orange-700">
+                            {formatTimeRange(
+                              conflict.newStartTime,
+                              conflict.newEndTime,
+                            )}
+                          </p>
                         </div>
                       </div>
-                    ))}
-                  </div>
-                )}
-
-                <div className="mt-5 rounded-2xl border border-orange-100 bg-orange-50/60 p-4">
-                  <p className="text-xs font-semibold text-orange-800">
-                    Scheduling rule
-                  </p>
-
-                  <p className="mt-1 text-xs leading-5 text-orange-700">
-                    Overlapping classes are not allowed. Back-to-back classes
-                    are permitted, so 4:00–5:00 PM followed by 5:00–6:00 PM do not
-                    conflict.
-                  </p>
+                    </div>
+                  ))}
                 </div>
-
-                <div className="mt-6 flex justify-end">
-                  <button
-                    type="button"
-                    onClick={() => setConflictModal(null)}
-                    className="inline-flex items-center justify-center rounded-xl bg-orange-500 px-5 py-2.5 text-xs font-semibold text-white shadow-md shadow-orange-100 transition duration-200 hover:-translate-y-0.5 hover:bg-orange-600 active:translate-y-0 active:scale-[0.98]"
-                  >
-                    Got it
-                  </button>
-                </div>
-              </div>
+              )}
             </div>
-          </div>
+          </Modal>
         )}
       </div>
     </main>

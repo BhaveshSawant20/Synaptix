@@ -27,6 +27,8 @@ type StandardSubjectMapping = {
 };
 
 import { API_URL } from "@/lib/api";
+import Modal from "@/app/app/components/Modal";
+import { compareStandards, naturalCompare } from "@/lib/sorting";
 
 export default function StandardSubjectsPage() {
   const [standards, setStandards] = useState<Standard[]>([]);
@@ -96,8 +98,19 @@ export default function StandardSubjectsPage() {
         throw new Error(subjectsData.message || "Failed to load subjects.");
       }
 
-      const loadedStandards: Standard[] = standardsData.standards || [];
-      const loadedSubjects: Subject[] = subjectsData.subjects || [];
+      const loadedStandards: Standard[] = (standardsData.standards || []).sort(
+        (a: Standard, b: Standard) => {
+          const schoolA = a.school?.name || "";
+          const schoolB = b.school?.name || "";
+          if (schoolA !== schoolB) {
+            return naturalCompare(schoolA, schoolB);
+          }
+          return compareStandards(a.name, b.name);
+        }
+      );
+      const loadedSubjects: Subject[] = (subjectsData.subjects || []).sort(
+        (a: Subject, b: Subject) => naturalCompare(a.name, b.name)
+      );
 
       setStandards(loadedStandards);
       setSubjects(loadedSubjects);
@@ -571,18 +584,41 @@ export default function StandardSubjectsPage() {
       </div>
 
       {/* Remove Confirmation Modal */}
-      {removeTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/45 px-5 py-8 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-3xl border border-red-100 bg-white p-6 shadow-2xl sm:p-7">
+      <Modal
+        isOpen={Boolean(removeTarget)}
+        onClose={() => setRemoveTarget(null)}
+        title="Remove subject from standard?"
+        badge="Warning"
+        description="This unlinks the subject from this standard's curriculum."
+        maxWidth="md"
+        footer={
+          <>
+            <button
+              type="button"
+              onClick={() => setRemoveTarget(null)}
+              disabled={saving}
+              className="inline-flex items-center justify-center rounded-xl border border-stone-200 bg-white px-5 py-2.5 text-xs font-semibold text-stone-600 transition hover:border-stone-300 hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              Cancel
+            </button>
+
+            <button
+              type="button"
+              onClick={handleConfirmRemove}
+              disabled={saving}
+              className="inline-flex items-center justify-center rounded-xl bg-red-600 px-5 py-2.5 text-xs font-semibold text-white shadow-sm transition hover:bg-red-700 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {saving ? "Removing..." : "Remove Subject"}
+            </button>
+          </>
+        }
+      >
+        {removeTarget && (
+          <div className="space-y-3">
             <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-red-50 text-xl font-bold text-red-600">
               !
             </div>
-
-            <h2 className="mt-5 text-lg font-semibold tracking-tight text-stone-900">
-              Remove subject from standard?
-            </h2>
-
-            <p className="mt-2 text-sm leading-6 text-stone-500">
+            <p className="text-sm leading-6 text-stone-600">
               Are you sure you want to remove{" "}
               <strong className="font-semibold text-stone-800">
                 {removeTarget.subject.name}
@@ -593,29 +629,9 @@ export default function StandardSubjectsPage() {
               </strong>
               ? This unlinks the subject from this standard's curriculum.
             </p>
-
-            <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-              <button
-                type="button"
-                onClick={() => setRemoveTarget(null)}
-                disabled={saving}
-                className="inline-flex items-center justify-center rounded-xl border border-stone-200 bg-white px-5 py-2.5 text-xs font-semibold text-stone-600 transition hover:border-stone-300 hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                Cancel
-              </button>
-
-              <button
-                type="button"
-                onClick={handleConfirmRemove}
-                disabled={saving}
-                className="inline-flex items-center justify-center rounded-xl bg-red-600 px-5 py-2.5 text-xs font-semibold text-white shadow-sm transition hover:bg-red-700 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {saving ? "Removing..." : "Remove Subject"}
-              </button>
-            </div>
           </div>
-        </div>
-      )}
+        )}
+      </Modal>
     </main>
   );
 }

@@ -97,7 +97,7 @@ router.get(
           instituteId: req.instituteId,
         },
         orderBy: {
-          createdAt: "desc",
+          name: "asc",
         },
       });
 
